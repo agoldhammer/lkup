@@ -19,12 +19,16 @@ func ReadLines(filename string) []string {
 }
 
 func ParseErrorLog() {
+	errexp := `\[(.+)] \[core:info] \[.+] \[client (\S+):\S+](.+)`
 	lines := ReadLines("error.log")
 	for _, line := range lines {
-		re := regexp.MustCompile(`client (\S+):`)
+		re := regexp.MustCompile(errexp)
+		// re := regexp.MustCompile(`client (\S+):`)
 		result := re.FindAllStringSubmatch(line, -1)
 		if result != nil {
-			fmt.Printf("%v", result)
+			for _, piece := range result[0] {
+				fmt.Printf("piece: %v\n", piece)
+			}
 		}
 	}
 }
