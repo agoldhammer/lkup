@@ -3,9 +3,11 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/agoldhammer/lkup/parser"
 	"io/ioutil"
 	"net"
 	"net/http"
+	"os"
 	"regexp"
 	"time"
 )
@@ -24,6 +26,8 @@ type Geodata struct {
 	MetroCode   int32   `json:"metro_code"`
 }
 
+type Geo2 map[string]interface{}
+
 var myClient = &http.Client{Timeout: 10 * time.Second}
 
 func getJson(url string, target interface{}) error {
@@ -33,12 +37,13 @@ func getJson(url string, target interface{}) error {
 	return json.NewDecoder(r.Body).Decode(target)
 }
 
-func lkupGeoloc(ip string) Geodata {
+func lkupGeoloc(ip string) Geo2 {
 	geoip := "https://freegeoip.net/json/"
 	ip2 := geoip + ip
-	geo := Geodata{}
-	getJson(ip2, &geo)
-	return geo
+	//	geo := Geodata{}
+	geo2 := Geo2{}
+	getJson(ip2, &geo2)
+	return geo2
 }
 
 func check(e error) {
@@ -64,6 +69,8 @@ func lookup(ip string) {
 }
 
 func main() {
+	parser.ParseErrorLog()
+	os.Exit(1)
 	dat := lkupReadFile("error.log")
 	// fmt.Print(dat)
 	// fmt.Println("regexp")
