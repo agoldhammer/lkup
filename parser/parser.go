@@ -46,3 +46,26 @@ func ParseErrorLog() []LogEntry {
 	// fmt.Println(logEntries)
 	return logEntries
 }
+
+func ParseAccessLog() []LogEntry {
+	accessexp := `(\S+).+\[(.+)] "([^"]+)"`
+	lines := ReadLines("access.log")
+	logEntries := []LogEntry{}[:]
+	for _, line := range lines {
+		re := regexp.MustCompile(accessexp)
+		// re := regexp.MustCompile(`client (\S+):`)
+		result := re.FindAllStringSubmatch(line, -1)
+		if result != nil {
+			parts := result[0]
+			logEntry := LogEntry{}
+			// fmt.Printf("parts = %+v\n", parts)
+			logEntry.Time = parts[2]
+			logEntry.IP = parts[1]
+			logEntry.Text = parts[3]
+			logEntries = append(logEntries, logEntry)
+			// fmt.Println(logEntry.ip, logEntry)
+		}
+	}
+	// fmt.Println(logEntries)
+	return logEntries
+}
