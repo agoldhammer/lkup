@@ -4,11 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/agoldhammer/lkup/parser"
-	"io/ioutil"
 	"net"
 	"net/http"
-	"os"
-	"regexp"
 	"time"
 )
 
@@ -52,39 +49,23 @@ func check(e error) {
 	}
 }
 
-func lkupReadFile(fname string) string {
-	dat, err := ioutil.ReadFile(fname)
-	check(err)
-	// fmt.Print(string(dat))
-	return string(dat)
-}
-
-func lookup(ip string) {
+func lookup(logEntry parser.LogEntry) {
 	// fmt.Println(ip)
+	ip := logEntry.IP
 	names := make([]string, 10)
 	names, _ = net.LookupAddr(ip)
 	// fmt.Println(ip, names)
 	geoloc := lkupGeoloc(ip)
-	fmt.Println(ip, names, geoloc)
+	// fmt.Printf("logEntry = %+v\n", logEntry)
+	fmt.Println(ip, names, geoloc["country_name"])
 }
 
 func main() {
-	parser.ParseErrorLog()
-	os.Exit(1)
-	dat := lkupReadFile("error.log")
-	// fmt.Print(dat)
-	// fmt.Println("regexp")
-	re := regexp.MustCompile(`client (\S+):`)
-	result := re.FindAllStringSubmatch(dat, -1)
-	for _, res := range result {
-		ip := res[1]
-		go lookup(ip)
+	logEntries := parser.ParseErrorLog()
+	for _, logEntry := range logEntries {
+		// fmt.Printf("logEntry.IP = %+v\n", logEntry.IP)
+		go lookup(logEntry)
 	}
-	// var err error
-	//	ips := []string{"172.75.31.11", "72.92.101.34", "75.92.101.34"}
-	//	for _, ip := range ips {
-	//		go lookup(ip)
-	//	}
 	time.Sleep(time.Second * 5)
 }
 
