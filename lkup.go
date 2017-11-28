@@ -63,6 +63,16 @@ func (p PerpsType) addLogEntry(le parser.LogEntry) {
 	p[ip] = info
 }
 
+func (p PerpsType) updatePerps(update chan HostInfoType) {
+	// add hostinfo from channel update, caller shd close when done
+	for hinfo := range update {
+		ip := hinfo.Geo.IP
+		info := p[ip]
+		info.Hostinfo = hinfo
+		p[ip] = info
+	}
+}
+
 // type Geo2 map[string]interface{}
 
 var myClient = &http.Client{Timeout: 10 * time.Second}
@@ -110,15 +120,6 @@ func lookup(logEntry parser.LogEntry, update chan HostInfoType) {
 	// fmt.Println(ip, names, geoloc.CountryName)
 	update <- hostinfo
 	// fmt.Printf("hostinfo = %+v\n", hostinfo)
-}
-
-func (p PerpsType) updatePerps(update chan HostInfoType) {
-	for hinfo := range update {
-		ip := hinfo.Geo.IP
-		info := p[ip]
-		info.Hostinfo = hinfo
-		p[ip] = info
-	}
 }
 
 func main() {
