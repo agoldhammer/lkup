@@ -37,7 +37,7 @@ type InfoType struct {
 }
 
 func (info InfoType) Print() {
-	fmt.Printf("%+v\n", info.Hostinfo)
+	fmt.Printf("**HostInfo**%+v\n", info.Hostinfo)
 	for _, le := range info.LogEntries {
 		fmt.Printf("%+v\n", le)
 	}
@@ -45,11 +45,12 @@ func (info InfoType) Print() {
 
 type PerpsType map[string]InfoType
 
-func (p PerpsType) Print() {
+func (p *PerpsType) Print() {
+	pp := *p
 	fmt.Println("===========")
-	for ip, _ := range p {
+	for ip, _ := range pp {
 		fmt.Println("----> ", ip)
-		p[ip].Print()
+		pp[ip].Print()
 	}
 }
 
@@ -110,22 +111,24 @@ func lookup(logEntry parser.LogEntry, update chan HostInfoType) {
 	// fmt.Printf("logEntry = %+v\n", logEntry)
 	// fmt.Println(ip, names, geoloc.CountryName)
 	update <- hostinfo
-	fmt.Printf("hostinfo = %+v\n", hostinfo)
+	// fmt.Printf("hostinfo = %+v\n", hostinfo)
 }
 
-func (p PerpsType) updatePerps(update chan HostInfoType) {
+func (p *PerpsType) updatePerps(update chan HostInfoType) {
 	for hinfo := range update {
+		pp := *p
 		ip := hinfo.Geo.IP
-		info := p[ip]
+		info := pp[ip]
 		info.Hostinfo = hinfo
-		p[ip] = info
+		pp[ip] = info
 	}
 }
 
 func main() {
 	update := make(chan HostInfoType, 10)
 	perps := make(PerpsType)
-	pptr := &perps
+	pp := &perps
+	// pptr := &perps
 	logEntries := parser.ParseAccessLog()
 	go perps.updatePerps(update)
 	for _, logEntry := range logEntries {
@@ -134,10 +137,11 @@ func main() {
 			wg.Add(1)
 			go lookup(logEntry, update)
 		}
-		pptr.addLogEntry(logEntry)
+		pp.addLogEntry(logEntry)
 	}
+	fmt.Printf("Processing %v entries\n", len(perps))
 	wg.Wait()
 	close(update)
 	// time.Sleep(time.Second * 5)
-	perps.Print()
+	pp.Print()
 }
