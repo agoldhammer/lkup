@@ -45,18 +45,16 @@ func (info InfoType) Print() {
 
 type PerpsType map[string]InfoType
 
-func (p *PerpsType) Print() {
-	pp := *p
+func (p PerpsType) Print() {
 	fmt.Println("===========")
-	for ip, _ := range pp {
+	for ip, _ := range p {
 		fmt.Println("----> ", ip)
-		pp[ip].Print()
+		p[ip].Print()
 	}
 }
 
-func (pp *PerpsType) addLogEntry(le parser.LogEntry) {
+func (p PerpsType) addLogEntry(le parser.LogEntry) {
 	ip := le.IP
-	p := *pp
 	info, ok := p[ip]
 	if !ok {
 		info = InfoType{}
@@ -114,20 +112,18 @@ func lookup(logEntry parser.LogEntry, update chan HostInfoType) {
 	// fmt.Printf("hostinfo = %+v\n", hostinfo)
 }
 
-func (p *PerpsType) updatePerps(update chan HostInfoType) {
+func (p PerpsType) updatePerps(update chan HostInfoType) {
 	for hinfo := range update {
-		pp := *p
 		ip := hinfo.Geo.IP
-		info := pp[ip]
+		info := p[ip]
 		info.Hostinfo = hinfo
-		pp[ip] = info
+		p[ip] = info
 	}
 }
 
 func main() {
 	update := make(chan HostInfoType, 10)
 	perps := make(PerpsType)
-	pp := &perps
 	// pptr := &perps
 	logEntries := parser.ParseAccessLog()
 	go perps.updatePerps(update)
@@ -137,11 +133,11 @@ func main() {
 			wg.Add(1)
 			go lookup(logEntry, update)
 		}
-		pp.addLogEntry(logEntry)
+		perps.addLogEntry(logEntry)
 	}
 	fmt.Printf("Processing %v entries\n", len(perps))
 	wg.Wait()
 	close(update)
 	// time.Sleep(time.Second * 5)
-	pp.Print()
+	perps.Print()
 }
