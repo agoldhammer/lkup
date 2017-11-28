@@ -6,8 +6,11 @@ import (
 	"github.com/agoldhammer/lkup/parser"
 	"net"
 	"net/http"
+	"sync"
 	"time"
 )
+
+var wg sync.WaitGroup
 
 type Geodata struct {
 	IP          string  `json:"ip"`
@@ -23,15 +26,18 @@ type Geodata struct {
 	MetroCode   int32   `json:"metro_code"`
 }
 
+type HostInfoType struct {
+	Hostname string
+	Geo      Geodata
+}
+
 type InfoType struct {
-	Host       string
-	Geo        Geodata
+	Hostinfo   HostInfoType
 	LogEntries []parser.LogEntry
 }
 
 func (info InfoType) Print() {
-	fmt.Printf("%s\n", info.Host)
-	fmt.Printf("%+v\n", info.Geo)
+	fmt.Printf("%+v\n", info.Hostinfo)
 	for _, le := range info.LogEntries {
 		fmt.Printf("%+v\n", le)
 	}
@@ -86,36 +92,52 @@ func check(e error) {
 	}
 }
 
-func lookup(logEntry parser.LogEntry) {
+func lookup(logEntry parser.LogEntry, update chan HostInfoType) {
 	// fmt.Println(ip)
+	var name string
+	defer wg.Done()
 	ip := logEntry.IP
 	names := make([]string, 10)
 	names, _ = net.LookupAddr(ip)
 	// fmt.Println(ip, names)
 	geoloc := lkupGeoloc(ip)
+	if names != nil {
+		name = names[0]
+	} else {
+		name = "unknown"
+	}
+	hostinfo := HostInfoType{name, geoloc}
 	// fmt.Printf("logEntry = %+v\n", logEntry)
-	fmt.Println(ip, names, geoloc.CountryName)
+	// fmt.Println(ip, names, geoloc.CountryName)
+	update <- hostinfo
+	fmt.Printf("hostinfo = %+v\n", hostinfo)
+}
+
+func (p PerpsType) updatePerps(update chan HostInfoType) {
+	for hinfo := range update {
+		ip := hinfo.Geo.IP
+		info := p[ip]
+		info.Hostinfo = hinfo
+		p[ip] = info
+	}
 }
 
 func main() {
+	update := make(chan HostInfoType, 10)
 	perps := make(PerpsType)
 	pptr := &perps
 	logEntries := parser.ParseAccessLog()
+	go perps.updatePerps(update)
 	for _, logEntry := range logEntries {
 		// lookup hostname and geodata only if not already in database
 		if _, ok := perps[logEntry.IP]; !ok {
-			go lookup(logEntry)
+			wg.Add(1)
+			go lookup(logEntry, update)
 		}
 		pptr.addLogEntry(logEntry)
 	}
-	time.Sleep(time.Second * 5)
+	wg.Wait()
+	close(update)
+	// time.Sleep(time.Second * 5)
 	perps.Print()
 }
-
-// To split read into lines
-// content, err := ioutil.ReadFile(filename)
-// if err != nil {
-// 	    //Do something
-//
-// }
-// lines := strings.Split(string(content), "\n")
