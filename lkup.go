@@ -125,7 +125,6 @@ func lookup(logEntry parser.LogEntry, update chan HostInfoType) {
 func main() {
 	update := make(chan HostInfoType, 10)
 	perps := make(PerpsType)
-	// pptr := &perps
 	logEntries := parser.ParseAccessLog()
 	go perps.updatePerps(update)
 	for _, logEntry := range logEntries {
@@ -139,6 +138,5 @@ func main() {
 	fmt.Printf("Processing %v entries\n", len(perps))
 	wg.Wait()
 	close(update)
-	// time.Sleep(time.Second * 5)
 	perps.Print()
 }
