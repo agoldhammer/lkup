@@ -24,17 +24,17 @@ func ReadLines(filename string) []string {
 	return lines
 }
 
-func ParseErrorLog() []LogEntry {
+func ParseErrorLog() []*LogEntry {
 	errexp := `\[(.+)] \[core:info] \[.+] \[client (\S+):\S+](.+)`
 	lines := ReadLines("error.log")
-	logEntries := []LogEntry{}[:]
+	logEntries := []*LogEntry{}[:]
 	for _, line := range lines {
 		re := regexp.MustCompile(errexp)
 		// re := regexp.MustCompile(`client (\S+):`)
 		result := re.FindAllStringSubmatch(line, -1)
 		if result != nil {
 			parts := result[0]
-			logEntry := LogEntry{}
+			logEntry := new(LogEntry)
 			// fmt.Printf("parts = %+v\n", parts)
 			logEntry.Time = parts[1]
 			logEntry.IP = parts[2]
@@ -47,17 +47,17 @@ func ParseErrorLog() []LogEntry {
 	return logEntries
 }
 
-func ParseAccessLog() []LogEntry {
+func ParseAccessLog() []*LogEntry {
 	accessexp := `(\S+).+\[(.+)] "([^"]+)"`
 	lines := ReadLines("access.log")
-	logEntries := []LogEntry{}[:]
+	logEntries := []*LogEntry{}[:]
 	for _, line := range lines {
 		re := regexp.MustCompile(accessexp)
 		// re := regexp.MustCompile(`client (\S+):`)
 		result := re.FindAllStringSubmatch(line, -1)
 		if result != nil {
 			parts := result[0]
-			logEntry := LogEntry{}
+			logEntry := new(LogEntry)
 			// fmt.Printf("parts = %+v\n", parts)
 			logEntry.Time = parts[2]
 			logEntry.IP = parts[1]
@@ -70,17 +70,17 @@ func ParseAccessLog() []LogEntry {
 	return logEntries
 }
 
-func ParseOtherAccessLog() []LogEntry {
+func ParseOtherAccessLog() []*LogEntry {
 	accessexp := `\S+\s(\S+).+\[(.+)][^"]+"([^"]+)"`
 	lines := ReadLines("other_vhosts_access.log")
-	logEntries := []LogEntry{}[:]
+	logEntries := []*LogEntry{}[:]
 	for _, line := range lines {
 		re := regexp.MustCompile(accessexp)
 		// re := regexp.MustCompile(`client (\S+):`)
 		result := re.FindAllStringSubmatch(line, -1)
 		if result != nil {
 			parts := result[0]
-			logEntry := LogEntry{}
+			logEntry := new(LogEntry)
 			// fmt.Printf("parts = %+v\n", parts)
 			logEntry.Time = parts[2]
 			logEntry.IP = parts[1]

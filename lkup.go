@@ -3,11 +3,12 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/agoldhammer/lkup/parser"
 	"net"
 	"net/http"
 	"sync"
 	"time"
+
+	"github.com/agoldhammer/lkup/parser"
 )
 
 var wg sync.WaitGroup
@@ -28,42 +29,49 @@ type Geodata struct {
 
 type HostInfoType struct {
 	Hostname string
-	Geo      Geodata
+	Geo      *Geodata
+}
+
+func (hostinfo *HostInfoType) Print() {
+	fmt.Printf("Hostname: %v\n", hostinfo.Hostname)
+	fmt.Printf("Country Code: %v\n", hostinfo.Geo.CountryCode)
+	fmt.Printf("Geo = %+v\n", hostinfo.Geo)
 }
 
 type InfoType struct {
-	Hostinfo   HostInfoType
-	LogEntries []parser.LogEntry
+	Hostinfo   *HostInfoType
+	LogEntries []*parser.LogEntry
 }
 
-func (info InfoType) Print() {
-	fmt.Printf("**HostInfo**%+v\n", info.Hostinfo)
-	for _, le := range info.LogEntries {
-		fmt.Printf("%+v\n", le)
+func (info *InfoType) Print() {
+	// fmt.Printf("**HostInfo**%+v\n", info.Hostinfo)
+	info.Hostinfo.Print()
+	for n, le := range info.LogEntries {
+		fmt.Printf("Log entry %d: %+v\n", n, le)
 	}
 }
 
-type PerpsType map[string]InfoType
+type PerpsType map[string]*InfoType
 
 func (p PerpsType) Print() {
-	fmt.Println("===========")
 	for ip, _ := range p {
+		fmt.Println("\n+++++++++")
 		fmt.Println("----> ", ip)
 		p[ip].Print()
 	}
 }
 
-func (p PerpsType) addLogEntry(le parser.LogEntry) {
+func (p PerpsType) addLogEntry(le *parser.LogEntry) {
 	ip := le.IP
 	info, ok := p[ip]
 	if !ok {
-		info = InfoType{}
+		info = new(InfoType)
 	}
 	info.LogEntries = append(info.LogEntries, le)
 	p[ip] = info
 }
 
-func (p PerpsType) updatePerps(update chan HostInfoType) {
+func (p PerpsType) updatePerps(update chan *HostInfoType) {
 	// add hostinfo from channel update, caller shd close when done
 	for hinfo := range update {
 		ip := hinfo.Geo.IP
@@ -84,12 +92,12 @@ func getJson(url string, target interface{}) error {
 	return json.NewDecoder(r.Body).Decode(target)
 }
 
-func lkupGeoloc(ip string) Geodata {
+func lkupGeoloc(ip string) *Geodata {
 	geoip := "https://freegeoip.net/json/"
 	ip2 := geoip + ip
 	geo := Geodata{}
 	getJson(ip2, &geo)
-	return geo
+	return &geo
 	// geo2 := Geo2{}
 	// getJson(ip2, &geo2)
 	// return geo2
@@ -101,7 +109,7 @@ func check(e error) {
 	}
 }
 
-func lookup(logEntry parser.LogEntry, update chan HostInfoType) {
+func lookup(logEntry *parser.LogEntry, update chan *HostInfoType) {
 	// fmt.Println(ip)
 	var name string
 	defer wg.Done()
@@ -118,17 +126,20 @@ func lookup(logEntry parser.LogEntry, update chan HostInfoType) {
 	hostinfo := HostInfoType{name, geoloc}
 	// fmt.Printf("logEntry = %+v\n", logEntry)
 	// fmt.Println(ip, names, geoloc.CountryName)
-	update <- hostinfo
+	update <- &hostinfo
 	// fmt.Printf("hostinfo = %+v\n", hostinfo)
 }
 
 func main() {
-	update := make(chan HostInfoType, 10)
+	update := make(chan *HostInfoType, 5)
 	perps := make(PerpsType)
 	logEntries := parser.ParseAccessLog()
+	// this is the receiver routine, which updates the perps db
 	go perps.updatePerps(update)
+	// start one go routine for each log entry
 	for _, logEntry := range logEntries {
 		// lookup hostname and geodata only if not already in database
+		// fmt.Println(logEntry)
 		if _, ok := perps[logEntry.IP]; !ok {
 			wg.Add(1)
 			go lookup(logEntry, update)
