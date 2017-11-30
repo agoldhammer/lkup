@@ -61,10 +61,13 @@ func (p PerpsType) Print() {
 	}
 }
 
-func (p PerpsType) addLogEntry(le *parser.LogEntry) {
+func (p PerpsType) addLogEntry(le *parser.LogEntry,
+	update chan *HostInfoType) {
 	ip := le.IP
 	info, ok := p[ip]
 	if !ok {
+		// make sure not to start lookup before info has been added
+		defer lookup(le, update)
 		info = new(InfoType)
 	}
 	info.LogEntries = append(info.LogEntries, le)
@@ -110,10 +113,14 @@ func check(e error) {
 }
 
 func lookup(logEntry *parser.LogEntry, update chan *HostInfoType) {
+	wg.Add(1)
+	go doAsyncLookups(logEntry.IP, update)
+}
+
+func doAsyncLookups(ip string, update chan *HostInfoType) {
 	// fmt.Println(ip)
 	var name string
 	defer wg.Done()
-	ip := logEntry.IP
 	names := make([]string, 10)
 	names, _ = net.LookupAddr(ip)
 	// fmt.Println(ip, names)
@@ -130,8 +137,17 @@ func lookup(logEntry *parser.LogEntry, update chan *HostInfoType) {
 	// fmt.Printf("hostinfo = %+v\n", hostinfo)
 }
 
+func monitor(mon chan string) {
+	for msg := range mon {
+		fmt.Printf("Processing %v\n", msg)
+	}
+	fmt.Println("All processed")
+}
+
 func main() {
 	update := make(chan *HostInfoType, 5)
+	mon := make(chan string)
+	go monitor(mon)
 	perps := make(PerpsType)
 	logEntries := parser.ParseAccessLog()
 	// this is the receiver routine, which updates the perps db
@@ -140,14 +156,13 @@ func main() {
 	for _, logEntry := range logEntries {
 		// lookup hostname and geodata only if not already in database
 		// fmt.Println(logEntry)
-		if _, ok := perps[logEntry.IP]; !ok {
-			wg.Add(1)
-			go lookup(logEntry, update)
-		}
-		perps.addLogEntry(logEntry)
+		mon <- logEntry.IP
+		perps.addLogEntry(logEntry, update)
 	}
-	fmt.Printf("Processing %v entries\n", len(perps))
+	msg := fmt.Sprintf("Processing %v entries\n", len(perps))
+	mon <- msg
 	wg.Wait()
+	close(mon)
 	close(update)
 	perps.Print()
 }
