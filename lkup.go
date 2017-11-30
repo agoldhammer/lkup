@@ -122,10 +122,11 @@ func lookup(logEntry *parser.LogEntry, update chan *HostInfoType) {
 func doAsyncLookups(ip string, update chan *HostInfoType) {
 	// fmt.Println(ip)
 	var name string
+	// var err error
 	defer wg.Done()
-	names := make([]string, 10)
+	names := make([]string, 3)
 	names, _ = net.LookupAddr(ip)
-	// fmt.Println(ip, names)
+	// check(err)
 	geoloc := lkupGeoloc(ip)
 	if names != nil {
 		name = names[0]
