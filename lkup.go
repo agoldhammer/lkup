@@ -2,9 +2,11 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"net"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 
@@ -141,15 +143,13 @@ func monitor(mon chan string) {
 	for msg := range mon {
 		fmt.Printf("Processing %v\n", msg)
 	}
-	fmt.Println("All processed")
 }
 
-func main() {
+func process(logEntries []*parser.LogEntry) {
 	update := make(chan *HostInfoType, 5)
 	mon := make(chan string)
 	go monitor(mon)
 	perps := make(PerpsType)
-	logEntries := parser.ParseAccessLog()
 	// this is the receiver routine, which updates the perps db
 	go perps.updatePerps(update)
 	// start one go routine for each log entry
@@ -165,4 +165,23 @@ func main() {
 	close(mon)
 	close(update)
 	perps.Print()
+}
+
+func main() {
+	accFlag := flag.Bool("a", false, "Process access.log")
+	otherFlag := flag.Bool("o", false, "Process others_vhosts_access.log")
+	errorFlag := flag.Bool("e", false, "Process error.log")
+	var logEntries []*parser.LogEntry
+	flag.Parse()
+	if *accFlag {
+		logEntries = parser.ParseAccessLog()
+	} else if *otherFlag {
+		logEntries = parser.ParseOtherAccessLog()
+	} else if *errorFlag {
+		logEntries = parser.ParseErrorLog()
+	} else {
+		fmt.Println("Error, exiting lkup")
+		os.Exit(1)
+	}
+	process(logEntries)
 }
