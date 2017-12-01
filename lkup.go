@@ -14,6 +14,13 @@ import (
 )
 
 var wg sync.WaitGroup
+var mon chan string // monitor channel
+
+func check(e error) {
+	if e != nil {
+		panic(e)
+	}
+}
 
 type Geodata struct {
 	IP          string  `json:"ip"`
@@ -30,6 +37,7 @@ type Geodata struct {
 }
 
 type HostInfoType struct {
+	IP       string
 	Hostname string
 	Geo      *Geodata
 }
@@ -64,13 +72,13 @@ func (p PerpsType) Print() {
 }
 
 func (p PerpsType) addLogEntry(le *parser.LogEntry,
-	update chan *HostInfoType) {
+	pipeInput chan *HostInfoType) {
 	ip := le.IP
 	info, ok := p[ip]
 	if !ok {
-		// make sure not to start lookup before info has been added
-		defer lookup(le, update)
 		info = new(InfoType)
+		// this will look up hostname and geodata
+		defer lookup(le, pipeInput)
 	}
 	info.LogEntries = append(info.LogEntries, le)
 	p[ip] = info
@@ -79,7 +87,8 @@ func (p PerpsType) addLogEntry(le *parser.LogEntry,
 func (p PerpsType) updatePerps(update chan *HostInfoType) {
 	// add hostinfo from channel update, caller shd close when done
 	for hinfo := range update {
-		ip := hinfo.Geo.IP
+		// mon <- fmt.Sprintf("updatePerps: hinfo = %+v\n", hinfo)
+		ip := hinfo.IP
 		info := p[ip]
 		info.Hostinfo = hinfo
 		p[ip] = info
@@ -97,47 +106,69 @@ func getJson(url string, target interface{}) error {
 	return json.NewDecoder(r.Body).Decode(target)
 }
 
-func lkupGeoloc(ip string) *Geodata {
-	geoip := "https://freegeoip.net/json/"
-	ip2 := geoip + ip
-	geo := Geodata{}
-	getJson(ip2, &geo)
-	return &geo
-	// geo2 := Geo2{}
-	// getJson(ip2, &geo2)
-	// return geo2
+func lookup(logEntry *parser.LogEntry,
+	pipeInput chan *HostInfoType) {
+	hostinfo := new(HostInfoType)
+	hostinfo.IP = logEntry.IP
+	// mon <- fmt.Sprintf("lookup: hostinfo = %+v\n", hostinfo)
+	// mon <- fmt.Sprintf("lookup: hostinfo.IP = %+v\n", hostinfo.IP)
+	pipeInput <- hostinfo
 }
 
-func check(e error) {
-	if e != nil {
-		panic(e)
-	}
+func lkupHost(done <-chan interface{},
+	lkupCh <-chan *HostInfoType) <-chan *HostInfoType {
+	outCh := make(chan *HostInfoType)
+	go func() {
+		for hostinfo := range lkupCh {
+			select {
+			case <-done:
+				return
+			default:
+				wg.Add(1)
+				go func(hostinfo *HostInfoType) {
+					var err error
+					name := "placeholder"
+					defer wg.Done()
+					names := make([]string, 3)
+					names, err = net.LookupAddr(hostinfo.IP)
+					if err == nil {
+						name = names[0]
+					} else {
+						name = "unknown"
+					}
+					hostinfo.Hostname = name
+					// mon <- fmt.Sprintf("host: hostinfo = %+v\n", hostinfo)
+					outCh <- hostinfo
+				}(hostinfo)
+			}
+		}
+	}()
+	return outCh
 }
 
-func lookup(logEntry *parser.LogEntry, update chan *HostInfoType) {
-	wg.Add(1)
-	go doAsyncLookups(logEntry.IP, update)
-}
-
-func doAsyncLookups(ip string, update chan *HostInfoType) {
-	// fmt.Println(ip)
-	var name string
-	// var err error
-	defer wg.Done()
-	names := make([]string, 3)
-	names, _ = net.LookupAddr(ip)
-	// check(err)
-	geoloc := lkupGeoloc(ip)
-	if names != nil {
-		name = names[0]
-	} else {
-		name = "unknown"
-	}
-	hostinfo := HostInfoType{name, geoloc}
-	// fmt.Printf("logEntry = %+v\n", logEntry)
-	// fmt.Println(ip, names, geoloc.CountryName)
-	update <- &hostinfo
-	// fmt.Printf("hostinfo = %+v\n", hostinfo)
+func lkupGeoloc(done <-chan interface{},
+	inCh <-chan *HostInfoType) <-chan *HostInfoType {
+	outCh := make(chan *HostInfoType)
+	go func() {
+		geoip := "https://freegeoip.net/json/"
+		for hostinfo := range inCh {
+			select {
+			case <-done:
+				return
+			default:
+				wg.Add(1)
+				go func(hostinfo *HostInfoType) {
+					defer wg.Done()
+					geo := Geodata{}
+					getJson(geoip+hostinfo.IP, &geo)
+					hostinfo.Geo = &geo
+					// fmt.Printf("geo: hostinfo = %+v\n", hostinfo)
+					outCh <- hostinfo
+				}(hostinfo)
+			}
+		}
+	}()
+	return outCh
 }
 
 func monitor(mon chan string) {
@@ -148,23 +179,31 @@ func monitor(mon chan string) {
 
 func process(logEntries []*parser.LogEntry) {
 	update := make(chan *HostInfoType, 5)
-	mon := make(chan string)
+	mon = make(chan string)
+	done := make(chan interface{})
+	pipeInput := make(chan *HostInfoType)
 	go monitor(mon)
 	perps := make(PerpsType)
 	// this is the receiver routine, which updates the perps db
 	go perps.updatePerps(update)
+	pipeline := lkupGeoloc(done, lkupHost(done, pipeInput))
+	go func() {
+		for hostinfo := range pipeline {
+			update <- hostinfo
+		}
+	}()
 	// start one go routine for each log entry
 	for _, logEntry := range logEntries {
 		// lookup hostname and geodata only if not already in database
 		// fmt.Println(logEntry)
-		mon <- logEntry.IP
-		perps.addLogEntry(logEntry, update)
+		// mon <- logEntry.IP
+		perps.addLogEntry(logEntry, pipeInput)
 	}
-	msg := fmt.Sprintf("Processing %v entries\n", len(perps))
-	mon <- msg
+	close(pipeInput)
+	mon <- fmt.Sprintf("Processing %v entries\n", len(perps))
 	wg.Wait()
-	close(mon)
-	close(update)
+	close(done)
+	// close(update)
 	perps.Print()
 }
 
