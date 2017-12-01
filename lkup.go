@@ -95,9 +95,7 @@ func (p PerpsType) updatePerps(update chan *HostInfoType) {
 	}
 }
 
-// type Geo2 map[string]interface{}
-
-var myClient = &http.Client{Timeout: 10 * time.Second}
+var myClient = &http.Client{Timeout: 3 * time.Second}
 
 func getJson(url string, target interface{}) error {
 	r, err := myClient.Get(url)
@@ -115,9 +113,35 @@ func lookup(logEntry *parser.LogEntry,
 	pipeInput <- hostinfo
 }
 
+func lookupAddrWTimeout(answerCh chan string, ip string, timeoutSecs int) {
+	ansCh := make(chan string)
+	var name string
+	var err error
+	go func() {
+		var name string
+		names := make([]string, 3)
+		names, err = net.LookupAddr(ip)
+		if err == nil {
+			name = names[0]
+		} else {
+			name = "unknown"
+		}
+		ansCh <- name
+		close(ansCh)
+	}()
+	select {
+	case <-time.After(time.Duration(timeoutSecs) * time.Second):
+		name = "Timed Out"
+	case name = <-ansCh:
+	}
+	answerCh <- name
+	wg.Done()
+}
+
 func lkupHost(done <-chan interface{},
 	lkupCh <-chan *HostInfoType) <-chan *HostInfoType {
 	outCh := make(chan *HostInfoType)
+	answerCh := make(chan string)
 	go func() {
 		for hostinfo := range lkupCh {
 			select {
@@ -125,21 +149,10 @@ func lkupHost(done <-chan interface{},
 				return
 			default:
 				wg.Add(1)
-				go func(hostinfo *HostInfoType) {
-					var err error
-					name := "placeholder"
-					defer wg.Done()
-					names := make([]string, 3)
-					names, err = net.LookupAddr(hostinfo.IP)
-					if err == nil {
-						name = names[0]
-					} else {
-						name = "unknown"
-					}
-					hostinfo.Hostname = name
-					// mon <- fmt.Sprintf("host: hostinfo = %+v\n", hostinfo)
-					outCh <- hostinfo
-				}(hostinfo)
+				go lookupAddrWTimeout(answerCh, hostinfo.IP, 1)
+				name := <-answerCh
+				hostinfo.Hostname = name
+				outCh <- hostinfo
 			}
 		}
 	}()
@@ -196,7 +209,7 @@ func process(logEntries []*parser.LogEntry) {
 	for _, logEntry := range logEntries {
 		// lookup hostname and geodata only if not already in database
 		// fmt.Println(logEntry)
-		// mon <- logEntry.IP
+		mon <- logEntry.IP
 		perps.addLogEntry(logEntry, pipeInput)
 	}
 	close(pipeInput)
