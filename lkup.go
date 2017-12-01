@@ -86,12 +86,19 @@ func (p PerpsType) addLogEntry(le *parser.LogEntry,
 
 func (p PerpsType) updatePerps(update chan *HostInfoType) {
 	// add hostinfo from channel update, caller shd close when done
+	wg.Add(1)
+	defer wg.Done()
 	for hinfo := range update {
 		// mon <- fmt.Sprintf("updatePerps: hinfo = %+v\n", hinfo)
 		ip := hinfo.IP
-		info := p[ip]
-		info.Hostinfo = hinfo
-		p[ip] = info
+		info, ok := p[ip]
+		if !ok {
+			panic("update perps: This shouldn't happen")
+		} else {
+			mon <- fmt.Sprintf("updatePerps: hinfo = %+v\n", hinfo)
+			info.Hostinfo = hinfo
+			p[ip] = info
+		}
 	}
 }
 
@@ -101,7 +108,8 @@ func getJson(url string, target interface{}) error {
 	r, err := myClient.Get(url)
 	check(err)
 	defer r.Body.Close()
-	return json.NewDecoder(r.Body).Decode(target)
+	json.NewDecoder(r.Body).Decode(target)
+	return err
 }
 
 func lookup(logEntry *parser.LogEntry,
@@ -135,7 +143,6 @@ func lookupAddrWTimeout(answerCh chan string, ip string, timeoutSecs int) {
 	case name = <-ansCh:
 	}
 	answerCh <- name
-	wg.Done()
 }
 
 func lkupHost(done <-chan interface{},
@@ -143,6 +150,7 @@ func lkupHost(done <-chan interface{},
 	outCh := make(chan *HostInfoType)
 	answerCh := make(chan string)
 	go func() {
+		defer close(outCh)
 		for hostinfo := range lkupCh {
 			select {
 			case <-done:
@@ -153,6 +161,7 @@ func lkupHost(done <-chan interface{},
 				name := <-answerCh
 				hostinfo.Hostname = name
 				outCh <- hostinfo
+				wg.Done()
 			}
 		}
 	}()
@@ -163,6 +172,7 @@ func lkupGeoloc(done <-chan interface{},
 	inCh <-chan *HostInfoType) <-chan *HostInfoType {
 	outCh := make(chan *HostInfoType)
 	go func() {
+		defer close(outCh)
 		geoip := "https://freegeoip.net/json/"
 		for hostinfo := range inCh {
 			select {
@@ -171,12 +181,12 @@ func lkupGeoloc(done <-chan interface{},
 			default:
 				wg.Add(1)
 				go func(hostinfo *HostInfoType) {
-					defer wg.Done()
 					geo := Geodata{}
 					getJson(geoip+hostinfo.IP, &geo)
 					hostinfo.Geo = &geo
 					// fmt.Printf("geo: hostinfo = %+v\n", hostinfo)
 					outCh <- hostinfo
+					wg.Done()
 				}(hostinfo)
 			}
 		}
@@ -201,6 +211,7 @@ func process(logEntries []*parser.LogEntry) {
 	go perps.updatePerps(update)
 	pipeline := lkupGeoloc(done, lkupHost(done, pipeInput))
 	go func() {
+		defer close(update)
 		for hostinfo := range pipeline {
 			update <- hostinfo
 		}
@@ -212,11 +223,10 @@ func process(logEntries []*parser.LogEntry) {
 		mon <- logEntry.IP
 		perps.addLogEntry(logEntry, pipeInput)
 	}
-	close(pipeInput)
 	mon <- fmt.Sprintf("Processing %v entries\n", len(perps))
 	wg.Wait()
 	close(done)
-	// close(update)
+	close(pipeInput)
 	perps.Print()
 }
 
