@@ -96,39 +96,6 @@ func getJson(url string, target interface{}) error {
 	return err
 }
 
-func lookup(logEntry *parser.LogEntry,
-	pipeInput chan *HostInfoType) {
-	hostinfo := new(HostInfoType)
-	hostinfo.IP = logEntry.IP
-	// mon <- fmt.Sprintf("lookup: hostinfo = %+v\n", hostinfo)
-	// mon <- fmt.Sprintf("lookup: hostinfo.IP = %+v\n", hostinfo.IP)
-	pipeInput <- hostinfo
-}
-
-func lookupAddrWTimeout(answerCh chan string, ip string, timeoutSecs int) {
-	ansCh := make(chan string)
-	var name string
-	var err error
-	go func() {
-		var name string
-		names := make([]string, 3)
-		names, err = net.LookupAddr(ip)
-		if err == nil {
-			name = names[0]
-		} else {
-			name = "unknown"
-		}
-		ansCh <- name
-		close(ansCh)
-	}()
-	select {
-	case <-time.After(time.Duration(timeoutSecs) * time.Second):
-		name = "Timed Out"
-	case name = <-ansCh:
-	}
-	answerCh <- name
-}
-
 func lkupHost(done <-chan interface{},
 	inCh <-chan *HostInfoType) chan *HostInfoType {
 	outCh := make(chan *HostInfoType)
@@ -184,7 +151,6 @@ func lkupGeoloc(done <-chan interface{},
 			err := getJson(geoip+hostinfo.IP, &geo)
 			check(err)
 			hostinfo.Geo = &geo
-			// mon <- fmt.Sprintf("hostinfo = %+v\n", hostinfo)
 			select {
 			case <-done:
 				return
@@ -280,28 +246,38 @@ func makePipelines(done <-chan interface{}, count int) (Chnls, Chnls) {
 }
 
 func process(logEntries []*parser.LogEntry) {
+	/*
+		Store list of logEntries in perps map. For each new IP encountered,
+		create a pipeline to lookup hostname and geo information and store
+		these in the hostdb map. Print out info for each ip. Close all pipelines
+	*/
 	done := make(chan interface{})
 	mon = monitor(done)
 	perps := make(PerpsType)
 	hostdb := make(HostDB)
-	// pipeoutCh, pipeinCh := makeLookupPipeline(done)
-	count := len(logEntries)
-	outChs, inChs := makePipelines(done, count)
-	updateCh := multiplexer(done, outChs)
-	hostdb.updateHostDB(done, updateCh)
-	bar := pb.StartNew(count)
-	for i, logEntry := range logEntries {
-		// mon <- logEntry.IP
+	bar := pb.StartNew(len(logEntries))
+	newIPs := []string{}
+
+	for _, logEntry := range logEntries {
 		bar.Increment()
 		isNewIP := perps.addLogEntry(logEntry)
 		// lookup hostname and geodata only if not already in database
 		if isNewIP {
-			// mon <- logEntry.IP
-			hostInfo := new(HostInfoType)
-			hostInfo.IP = logEntry.IP
-			inChs[i] <- hostInfo
+			newIPs = append(newIPs, logEntry.IP)
 		}
 	}
+
+	count := len(newIPs)
+	outChs, inChs := makePipelines(done, count)
+	updateCh := multiplexer(done, outChs)
+	hostdb.updateHostDB(done, updateCh)
+
+	for i, ip := range newIPs {
+		hostInfo := new(HostInfoType)
+		hostInfo.IP = ip
+		inChs[i] <- hostInfo
+	}
+
 	for _, inCh := range inChs {
 		close(inCh)
 	}
