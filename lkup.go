@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"gopkg.in/cheggaaa/pb.v1"
 	"net"
 	"net/http"
 	"os"
@@ -14,6 +15,8 @@ import (
 )
 
 var wg sync.WaitGroup
+
+type Chnls []chan *HostInfoType
 
 // var updateWait sync.WaitGroup
 var mon chan string // monitor channel
@@ -130,24 +133,32 @@ func lkupHost(done <-chan interface{},
 	inCh <-chan *HostInfoType) chan *HostInfoType {
 	outCh := make(chan *HostInfoType)
 
-	revdns := func(ip string) string {
+	revdns := func(ip string, dnsCh chan string) {
 		var name string
-		names := make([]string, 3)
 		names, err := net.LookupAddr(ip)
 		if err == nil {
 			name = names[0]
 		} else {
 			name = "unknown"
 		}
-		return name
+		dnsCh <- name
+		close(dnsCh)
 	}
 
 	go func() {
 		defer close(outCh)
 		wg.Add(1)
 		defer wg.Done()
+		var name string
 		for hostinfo := range inCh {
-			hostinfo.Hostname = revdns(hostinfo.IP)
+			dnsCh := make(chan string)
+			go revdns(hostinfo.IP, dnsCh)
+			select {
+			case name = <-dnsCh:
+			case <-time.After(1 * time.Second):
+				name = "Timed Out!"
+			}
+			hostinfo.Hostname = name
 			select {
 			case <-done:
 				return
@@ -167,7 +178,6 @@ func lkupGeoloc(done <-chan interface{},
 		defer close(outCh)
 		wg.Add(1)
 		defer wg.Done()
-		defer fmt.Println("Geoloc closing")
 		geoip := "https://freegeoip.net/json/"
 		for hostinfo := range inCh {
 			geo := Geodata{}
@@ -205,6 +215,35 @@ func monitor(done chan interface{}) chan string {
 	return mon
 }
 
+func multiplexer(done <-chan interface{},
+	cs Chnls) chan *HostInfoType {
+	// see https://blog.golang.org/pipelines
+	var wg2 sync.WaitGroup
+	out := make(chan *HostInfoType)
+
+	output := func(c chan *HostInfoType) {
+		for hostinfo := range c {
+			select {
+			case out <- hostinfo:
+			case <-done:
+			}
+		}
+		wg2.Done()
+	}
+
+	wg2.Add(len(cs))
+	for _, c := range cs {
+		go output(c)
+	}
+
+	go func() {
+		wg2.Wait()
+		close(out)
+	}()
+
+	return out
+}
+
 func (hdb HostDB) updateHostDB(done chan interface{}, inCh chan *HostInfoType) {
 
 	go func() {
@@ -221,7 +260,7 @@ func (hdb HostDB) updateHostDB(done chan interface{}, inCh chan *HostInfoType) {
 	}()
 }
 
-func makeLookupPipeline(done chan interface{}) (chan *HostInfoType,
+func makeLookupPipeline(done <-chan interface{}) (chan *HostInfoType,
 	chan *HostInfoType) {
 	inCh := make(chan *HostInfoType)
 	hostCh := lkupHost(done, inCh)
@@ -229,42 +268,44 @@ func makeLookupPipeline(done chan interface{}) (chan *HostInfoType,
 	return outCh, inCh
 }
 
+func makePipelines(done <-chan interface{}, count int) (Chnls, Chnls) {
+	outChs := make(Chnls, count)
+	inChs := make(Chnls, count)
+	for i := 0; i < count; i++ {
+		outCh, inCh := makeLookupPipeline(done)
+		outChs[i] = outCh
+		inChs[i] = inCh
+	}
+	return outChs, inChs
+}
+
 func process(logEntries []*parser.LogEntry) {
-	/* update := make(chan *HostInfoType, 5)
-
-
-	pipeInput := make(chan *HostInfoType)
-	*/
 	done := make(chan interface{})
 	mon = monitor(done)
 	perps := make(PerpsType)
 	hostdb := make(HostDB)
-	// this is the receiver routine, which updates the perps db
-	// go perps.updatePerps(update)
-	// pipeline := lkupGeoloc(done, lkupHost(done, pipeInput))
-	/* go func() {
-		for hostinfo := range pipeline {
-			update <- hostinfo
-			// mon <- fmt.Sprintf("hostinfo = %+v\n", hostinfo)
-		}
-		close(done)
-	}() */
-	pipeoutCh, pipeinCh := makeLookupPipeline(done)
-	hostdb.updateHostDB(done, pipeoutCh)
-	for _, logEntry := range logEntries {
-		// lookup hostname and geodata only if not already in database
-		// fmt.Println(logEntry)
+	// pipeoutCh, pipeinCh := makeLookupPipeline(done)
+	count := len(logEntries)
+	outChs, inChs := makePipelines(done, count)
+	updateCh := multiplexer(done, outChs)
+	hostdb.updateHostDB(done, updateCh)
+	bar := pb.StartNew(count)
+	for i, logEntry := range logEntries {
 		// mon <- logEntry.IP
+		bar.Increment()
 		isNewIP := perps.addLogEntry(logEntry)
+		// lookup hostname and geodata only if not already in database
 		if isNewIP {
-			mon <- logEntry.IP
+			// mon <- logEntry.IP
 			hostInfo := new(HostInfoType)
 			hostInfo.IP = logEntry.IP
-			pipeinCh <- hostInfo
+			inChs[i] <- hostInfo
 		}
 	}
-	close(pipeinCh)
-	mon <- fmt.Sprintf("Processing %v entries\n", len(perps))
+	for _, inCh := range inChs {
+		close(inCh)
+	}
+	// mon <- fmt.Sprintf("Processing %v entries\n", len(perps))
 	wg.Wait()
 	perps.Print(&hostdb)
 	close(done)
