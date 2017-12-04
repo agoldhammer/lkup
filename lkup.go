@@ -2,16 +2,12 @@ package main
 
 import (
 	"encoding/json"
-	"flag"
 	"fmt"
 	"gopkg.in/cheggaaa/pb.v1"
 	"net"
 	"net/http"
-	"os"
 	"sync"
 	"time"
-
-	"github.com/agoldhammer/lkup/parser"
 )
 
 var wg sync.WaitGroup
@@ -59,7 +55,7 @@ func (les LogEntries) Print() {
 	}
 }
 
-type LogEntries []*parser.LogEntry
+type LogEntries []*LogEntry
 
 type PerpsType map[string]LogEntries
 
@@ -74,7 +70,7 @@ func (p PerpsType) Print(hdb *HostDB) {
 	}
 }
 
-func (p PerpsType) addLogEntry(le *parser.LogEntry) bool {
+func (p PerpsType) addLogEntry(le *LogEntry) bool {
 	isNewIP := false
 	ip := le.IP
 	les, ok := p[ip]
@@ -148,8 +144,8 @@ func lkupGeoloc(done <-chan interface{},
 		geoip := "https://freegeoip.net/json/"
 		for hostinfo := range inCh {
 			geo := Geodata{}
-			err := getJson(geoip+hostinfo.IP, &geo)
-			check(err)
+			// error will leave default geo, which is OK
+			getJson(geoip+hostinfo.IP, &geo)
 			hostinfo.Geo = &geo
 			select {
 			case <-done:
@@ -245,7 +241,7 @@ func makePipelines(done <-chan interface{}, count int) (Chnls, Chnls) {
 	return outChs, inChs
 }
 
-func process(logEntries []*parser.LogEntry) {
+func process(logEntries []*LogEntry) {
 	/*
 		Store list of logEntries in perps map. For each new IP encountered,
 		create a pipeline to lookup hostname and geo information and store
@@ -287,21 +283,21 @@ func process(logEntries []*parser.LogEntry) {
 	close(done)
 }
 
-func main() {
-	accFlag := flag.Bool("a", false, "Process access.log")
-	otherFlag := flag.Bool("o", false, "Process others_vhosts_access.log")
-	errorFlag := flag.Bool("e", false, "Process error.log")
-	var logEntries []*parser.LogEntry
-	flag.Parse()
-	if *accFlag {
-		logEntries = parser.ParseAccessLog()
-	} else if *otherFlag {
-		logEntries = parser.ParseOtherAccessLog()
-	} else if *errorFlag {
-		logEntries = parser.ParseErrorLog()
-	} else {
-		fmt.Println("Error, exiting lkup")
-		os.Exit(1)
-	}
-	process(logEntries)
-}
+// func main() {
+// 	accFlag := flag.Bool("a", false, "Process access.log")
+// 	otherFlag := flag.Bool("o", false, "Process others_vhosts_access.log")
+// 	errorFlag := flag.Bool("e", false, "Process error.log")
+// 	var logEntries []*parser.LogEntry
+// 	flag.Parse()
+// 	if *accFlag {
+// 		logEntries = parser.ParseAccessLog()
+// 	} else if *otherFlag {
+// 		logEntries = parser.ParseOtherAccessLog()
+// 	} else if *errorFlag {
+// 		logEntries = parser.ParseErrorLog()
+// 	} else {
+// 		fmt.Println("Error, exiting lkup")
+// 		os.Exit(1)
+// 	}
+// 	process(logEntries)
+// }
