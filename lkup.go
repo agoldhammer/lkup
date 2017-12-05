@@ -3,11 +3,12 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"gopkg.in/cheggaaa/pb.v1"
 	"net"
 	"net/http"
 	"sync"
 	"time"
+
+	"gopkg.in/cheggaaa/pb.v1"
 )
 
 var wg sync.WaitGroup
@@ -19,6 +20,7 @@ var mon chan string // monitor channel
 
 func check(e error) {
 	if e != nil {
+		fmt.Println(e)
 		panic(e)
 	}
 }
@@ -45,7 +47,7 @@ type HostInfoType struct {
 
 func (hostinfo *HostInfoType) Print() {
 	fmt.Printf("Hostname: %v\n", hostinfo.Hostname)
-	fmt.Printf("Country Code: %v\n", hostinfo.Geo.CountryCode)
+	fmt.Printf("Country Code: %v\n\n", hostinfo.Geo.CountryCode)
 	fmt.Printf("Geo = %+v\n", hostinfo.Geo)
 }
 
@@ -62,10 +64,11 @@ type PerpsType map[string]LogEntries
 type HostDB map[string]*HostInfoType
 
 func (p PerpsType) Print(hdb *HostDB) {
-	for ip, _ := range p {
+	for ip := range p {
 		fmt.Println("\n+++++++++")
 		fmt.Println("----> ", ip)
 		(*hdb)[ip].Print()
+		fmt.Println("....")
 		p[ip].Print()
 	}
 }
@@ -84,7 +87,7 @@ func (p PerpsType) addLogEntry(le *LogEntry) bool {
 
 var myClient = &http.Client{Timeout: 3 * time.Second}
 
-func getJson(url string, target interface{}) error {
+func getJSON(url string, target interface{}) error {
 	r, err := myClient.Get(url)
 	check(err)
 	defer r.Body.Close()
@@ -145,7 +148,7 @@ func lkupGeoloc(done <-chan interface{},
 		for hostinfo := range inCh {
 			geo := Geodata{}
 			// error will leave default geo, which is OK
-			getJson(geoip+hostinfo.IP, &geo)
+			getJSON(geoip+hostinfo.IP, &geo)
 			hostinfo.Geo = &geo
 			select {
 			case <-done:
@@ -282,22 +285,3 @@ func process(logEntries []*LogEntry) {
 	perps.Print(&hostdb)
 	close(done)
 }
-
-// func main() {
-// 	accFlag := flag.Bool("a", false, "Process access.log")
-// 	otherFlag := flag.Bool("o", false, "Process others_vhosts_access.log")
-// 	errorFlag := flag.Bool("e", false, "Process error.log")
-// 	var logEntries []*parser.LogEntry
-// 	flag.Parse()
-// 	if *accFlag {
-// 		logEntries = parser.ParseAccessLog()
-// 	} else if *otherFlag {
-// 		logEntries = parser.ParseOtherAccessLog()
-// 	} else if *errorFlag {
-// 		logEntries = parser.ParseErrorLog()
-// 	} else {
-// 		fmt.Println("Error, exiting lkup")
-// 		os.Exit(1)
-// 	}
-// 	process(logEntries)
-// }
