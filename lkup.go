@@ -211,7 +211,9 @@ func multiplexer(done <-chan interface{},
 
 func (hdb HostDB) updateHostDB(done chan interface{}, inCh chan *HostInfoType) {
 
+	wg.Add(1)
 	go func() {
+		wg.Done()
 		for hostinfo := range inCh {
 			hdb[hostinfo.IP] = hostinfo
 			// fmt.Printf("update: %v\n", hostinfo)
