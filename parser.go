@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"os"
 	"regexp"
@@ -111,7 +110,6 @@ func ReadConfig() Config {
 	if _, err := toml.DecodeFile(configfile, &config); err != nil {
 		check(err)
 	}
-	log.Print(config.Server)
 	return config
 }
 
