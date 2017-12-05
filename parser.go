@@ -9,6 +9,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/BurntSushi/toml"
 )
@@ -35,7 +36,8 @@ func ReadLines(filename string) []string {
 
 // ReadRemoteFile : To split remote file into lines
 func ReadRemoteFile(server, filename string) []string {
-	resp, err := http.Get("http://" + server + filename)
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Get("http://" + server + filename)
 	if err != nil {
 		check(err)
 	}
@@ -73,7 +75,6 @@ func parseLog(which string, remoteFlag bool, svr string) []*LogEntry {
 	npart := order[selector]
 
 	var lines []string
-	fmt.Printf("remoteFlag = %+v\n", remoteFlag)
 	if remoteFlag {
 		lines = ReadRemoteFile(svr, fname)
 	} else {
