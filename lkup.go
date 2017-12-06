@@ -51,6 +51,7 @@ func (hostinfo *HostInfoType) Print() {
 	fmt.Printf("Geo = %+v\n", hostinfo.Geo)
 }
 
+// LogEntries ------------------------
 func (les LogEntries) Print() {
 	for n, le := range les {
 		fmt.Printf("Log entry %d: %+v\n", n, le)
@@ -59,9 +60,34 @@ func (les LogEntries) Print() {
 
 type LogEntries []*LogEntry
 
-type PerpsType map[string]LogEntries
+// ----------------------------------------------------
 
+// HostDB is a map from IPs to HostInfo structures with IP, name, and geodata
 type HostDB map[string]*HostInfoType
+
+// updateHostDB takes HostInfo from its input channel and stores in HostDB
+func (hdb HostDB) updateHostDB(done chan interface{}, inCh chan *HostInfoType) {
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for hostinfo := range inCh {
+			hdb[hostinfo.IP] = hostinfo
+			select {
+			case <-done:
+				return
+			default:
+				continue
+			}
+		}
+	}()
+}
+
+// --------------------------------------------
+
+// PerpsType maps IPs to a slice of LogEntry structs containing
+// unparsed log entry strings
+type PerpsType map[string]LogEntries
 
 func (p PerpsType) Print(hdb HostDB) {
 	for ip := range p {
@@ -85,6 +111,8 @@ func (p PerpsType) addLogEntry(le *LogEntry) bool {
 	return isNewIP
 }
 
+// -----------------------------
+
 var myClient = &http.Client{Timeout: 3 * time.Second}
 
 func getJSON(url string, target interface{}) error {
@@ -95,6 +123,8 @@ func getJSON(url string, target interface{}) error {
 	return err
 }
 
+// Pipeline functions
+// lkupHost uses reverse DNS to find hostname
 func lkupHost(done <-chan interface{},
 	inCh <-chan *HostInfoType) chan *HostInfoType {
 	outCh := make(chan *HostInfoType)
@@ -136,6 +166,7 @@ func lkupHost(done <-chan interface{},
 	return outCh
 }
 
+// lkupGeoloc obtains geolocation data from freegeoip.net
 func lkupGeoloc(done <-chan interface{},
 	inCh <-chan *HostInfoType) chan *HostInfoType {
 	outCh := make(chan *HostInfoType)
@@ -161,6 +192,8 @@ func lkupGeoloc(done <-chan interface{},
 	return outCh
 }
 
+// monitor is a monitoring channel
+// TODO: replace with logger
 func monitor(done chan interface{}) chan string {
 	mon := make(chan string)
 
@@ -180,6 +213,7 @@ func monitor(done chan interface{}) chan string {
 	return mon
 }
 
+// multiplexer combines output from multiple pipelines to send to updateHostDB
 func multiplexer(done <-chan interface{},
 	cs Chnls) chan *HostInfoType {
 	// see https://blog.golang.org/pipelines
@@ -209,24 +243,7 @@ func multiplexer(done <-chan interface{},
 	return out
 }
 
-func (hdb HostDB) updateHostDB(done chan interface{}, inCh chan *HostInfoType) {
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for hostinfo := range inCh {
-			hdb[hostinfo.IP] = hostinfo
-			// fmt.Printf("update: %v\n", hostinfo)
-			select {
-			case <-done:
-				return
-			default:
-				continue
-			}
-		}
-	}()
-}
-
+//makeLookupPipeline creates a single host data lookup pipeline
 func makeLookupPipeline(done <-chan interface{}) (chan *HostInfoType,
 	chan *HostInfoType) {
 	inCh := make(chan *HostInfoType)
@@ -235,6 +252,7 @@ func makeLookupPipeline(done <-chan interface{}) (chan *HostInfoType,
 	return outCh, inCh
 }
 
+// makePipelines creates count host lookup pipelines
 func makePipelines(done <-chan interface{}, count int) (Chnls, Chnls) {
 	outChs := make(Chnls, count)
 	inChs := make(Chnls, count)
@@ -246,6 +264,9 @@ func makePipelines(done <-chan interface{}, count int) (Chnls, Chnls) {
 	return outChs, inChs
 }
 
+// process is the toplevel function. It creates one pipeline for each new IP.
+// It multiplexes the pipelines into updateHostDB. It also creates the
+// monitor channel. Waits until all data has been stored, then prints.
 func process(logEntries []*LogEntry) {
 	/*
 		Store list of logEntries in perps map. For each new IP encountered,
