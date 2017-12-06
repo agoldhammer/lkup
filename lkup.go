@@ -213,7 +213,7 @@ func (hdb HostDB) updateHostDB(done chan interface{}, inCh chan *HostInfoType) {
 
 	wg.Add(1)
 	go func() {
-		wg.Done()
+		defer wg.Done()
 		for hostinfo := range inCh {
 			hdb[hostinfo.IP] = hostinfo
 			// fmt.Printf("update: %v\n", hostinfo)
