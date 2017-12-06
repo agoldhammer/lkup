@@ -63,11 +63,11 @@ type PerpsType map[string]LogEntries
 
 type HostDB map[string]*HostInfoType
 
-func (p PerpsType) Print(hdb *HostDB) {
+func (p PerpsType) Print(hdb HostDB) {
 	for ip := range p {
 		fmt.Println("\n+++++++++")
 		fmt.Println("----> ", ip)
-		(*hdb)[ip].Print()
+		hdb[ip].Print()
 		fmt.Println("....")
 		p[ip].Print()
 	}
@@ -115,7 +115,7 @@ func lkupHost(done <-chan interface{},
 		defer close(outCh)
 		wg.Add(1)
 		defer wg.Done()
-		var name string
+		name := "DNS fail"
 		for hostinfo := range inCh {
 			dnsCh := make(chan string)
 			go revdns(hostinfo.IP, dnsCh)
@@ -284,6 +284,6 @@ func process(logEntries []*LogEntry) {
 	}
 	// mon <- fmt.Sprintf("Processing %v entries\n", len(perps))
 	wg.Wait()
-	perps.Print(&hostdb)
+	perps.Print(hostdb)
 	close(done)
 }
