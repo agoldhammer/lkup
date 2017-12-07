@@ -19,7 +19,7 @@ type Config struct {
 
 type LogEntry struct {
 	IP   string
-	Time string
+	Time time.Time
 	Text string
 }
 
@@ -49,6 +49,7 @@ func ReadRemoteFile(server, filename string) []string {
 	return lines
 }
 
+// parseLog parses logentry data according to specified regexp
 func parseLog(which string, remoteFlag bool, svr string) []*LogEntry {
 	// which should be one of e, a, or o to select appropriate
 	//  log file
@@ -88,7 +89,8 @@ func parseLog(which string, remoteFlag bool, svr string) []*LogEntry {
 			parts := result[0]
 			logEntry := new(LogEntry)
 			// fmt.Printf("parts = %+v\n", parts)
-			logEntry.Time = parts[npart[0]]
+			// logEntry.Time = parts[npart[0]]
+			logEntry.Time = dparse(parts[npart[0]])
 			logEntry.IP = parts[npart[1]]
 			logEntry.Text = parts[npart[2]]
 			logEntries = append(logEntries, logEntry)
@@ -98,7 +100,7 @@ func parseLog(which string, remoteFlag bool, svr string) []*LogEntry {
 	return logEntries
 }
 
-// Reads info from config file
+// ReadConfig reads parameters from lkup.config file
 func ReadConfig() Config {
 	var configfile = "lkup.config"
 	_, err := os.Stat(configfile)
@@ -119,7 +121,13 @@ func main() {
 	otherFlag := flag.Bool("o", false, "Process others_vhosts_access.log")
 	errorFlag := flag.Bool("e", false, "Process error.log")
 	remoteFlag := flag.Bool("r", false, "Read file from remote server")
+	dateFlag := flag.Bool("d", false, "TODO for testing dates")
 	flag.Parse()
+	if *dateFlag {
+		t := dparse("22/Nov/2017:18:47:58 +0000")
+		fmt.Printf("%v\n", t)
+		os.Exit(0)
+	}
 	var selector string
 	if *accFlag {
 		selector = "a"
