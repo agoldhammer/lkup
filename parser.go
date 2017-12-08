@@ -1,8 +1,6 @@
 package main
 
 import (
-	"flag"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -113,32 +111,4 @@ func ReadConfig() Config {
 		check(err)
 	}
 	return config
-}
-
-func main() {
-	config := ReadConfig()
-	accFlag := flag.Bool("a", false, "Process access.log")
-	otherFlag := flag.Bool("o", false, "Process others_vhosts_access.log")
-	errorFlag := flag.Bool("e", false, "Process error.log")
-	remoteFlag := flag.Bool("r", false, "Read file from remote server")
-	dateFlag := flag.Bool("d", false, "TODO for testing dates")
-	flag.Parse()
-	if *dateFlag {
-		t := dparse("22/Nov/2017:18:47:58 +0000")
-		fmt.Printf("%v\n", t)
-		os.Exit(0)
-	}
-	var selector string
-	if *accFlag {
-		selector = "a"
-	} else if *otherFlag {
-		selector = "o"
-	} else if *errorFlag {
-		selector = "e"
-	} else {
-		fmt.Println("Error, exiting lkup")
-		os.Exit(1)
-	}
-	logEntries := parseLog(selector, *remoteFlag, config.Server)
-	process(logEntries)
 }

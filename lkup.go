@@ -2,9 +2,11 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"net"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 
@@ -89,8 +91,15 @@ func (hdb HostDB) updateHostDB(done chan interface{}, inCh chan *HostInfoType) {
 // unparsed log entry strings
 type PerpsType map[string]LogEntries
 
-func (p PerpsType) Print(hdb HostDB) {
-	for ip := range p {
+// PrintSorted formats and prints hostinfo and logentries
+// For each IP, the latest logentry time is used to determine sort order.
+// Logentries are grouped by IP, with IPs ranked by this sort order,
+// so latest accessed IP will appear last
+func PrintSorted(p PerpsType, hdb HostDB) {
+	timeIndex := p.makeTimeIndex()
+	timeIndex = timeIndex.Sort()
+	for _, timeToken := range timeIndex {
+		ip := timeToken.IP
 		fmt.Println("\n+++++++++")
 		fmt.Println("----> ", ip)
 		hdb[ip].Print()
@@ -267,7 +276,7 @@ func makePipelines(done <-chan interface{}, count int) (Chnls, Chnls) {
 // process is the toplevel function. It creates one pipeline for each new IP.
 // It multiplexes the pipelines into updateHostDB. It also creates the
 // monitor channel. Waits until all data has been stored, then prints.
-func process(logEntries []*LogEntry) {
+func process(logEntries []*LogEntry) (PerpsType, HostDB) {
 	/*
 		Store list of logEntries in perps map. For each new IP encountered,
 		create a pipeline to lookup hostname and geo information and store
@@ -305,6 +314,35 @@ func process(logEntries []*LogEntry) {
 	}
 	// mon <- fmt.Sprintf("Processing %v entries\n", len(perps))
 	wg.Wait()
-	perps.Print(hostdb)
 	close(done)
+	return perps, hostdb
+}
+
+func main() {
+	config := ReadConfig()
+	accFlag := flag.Bool("a", false, "Process access.log")
+	otherFlag := flag.Bool("o", false, "Process others_vhosts_access.log")
+	errorFlag := flag.Bool("e", false, "Process error.log")
+	remoteFlag := flag.Bool("r", false, "Read file from remote server")
+	dateFlag := flag.Bool("d", false, "TODO for testing dates")
+	flag.Parse()
+	if *dateFlag {
+		t := dparse("22/Nov/2017:18:47:58 +0000")
+		fmt.Printf("%v\n", t)
+		os.Exit(0)
+	}
+	var selector string
+	if *accFlag {
+		selector = "a"
+	} else if *otherFlag {
+		selector = "o"
+	} else if *errorFlag {
+		selector = "e"
+	} else {
+		fmt.Println("Error, exiting lkup")
+		os.Exit(1)
+	}
+	rawLogEntries := parseLog(selector, *remoteFlag, config.Server)
+	perps, hostdb := process(rawLogEntries)
+	PrintSorted(perps, hostdb)
 }
