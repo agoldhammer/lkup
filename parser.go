@@ -100,7 +100,7 @@ func parseLog(which string, remoteFlag bool, svr string) []*LogEntry {
 
 // ReadConfig reads parameters from lkup.config file
 func ReadConfig() Config {
-	var configfile = "lkup.config"
+	var configfile = os.Getenv("HOME") + "/.lkup/lkup.config"
 	_, err := os.Stat(configfile)
 	if err != nil {
 		check(err)
