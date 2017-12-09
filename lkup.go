@@ -48,16 +48,23 @@ type HostInfoType struct {
 	Geo      *Geodata
 }
 
+func (g *Geodata) String() string {
+	a := fmt.Sprintf("*%v %v %v %v\n", g.CountryName, g.RegionName, g.City, g.Zip)
+	b := fmt.Sprintf("*%v (Lat/Long %v %v) Metro: %v\n", g.TZ, g.Lat, g.Long, g.MetroCode)
+	return a + b
+}
+
 func (hostinfo *HostInfoType) Print() {
-	fmt.Printf("Hostname: %v\n", hostinfo.Hostname)
-	fmt.Printf("Country Code: %v\n\n", hostinfo.Geo.CountryCode)
-	fmt.Printf("Geo = %+v\n", hostinfo.Geo)
+	fmt.Printf("*Hostname: %v\n", hostinfo.Hostname)
+	fmt.Printf("*Country Code: %v\n", hostinfo.Geo.CountryCode)
+	// fmt.Printf("Geo = %+v\n", hostinfo.Geo)
+	fmt.Printf("%v", hostinfo.Geo)
 }
 
 // LogEntries ------------------------
 func (les LogEntries) Print() {
-	for n, le := range les {
-		fmt.Printf("Log entry %d: %+v\n", n, le)
+	for _, le := range les {
+		fmt.Printf("*: %+v\n", *le)
 	}
 }
 
