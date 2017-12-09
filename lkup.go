@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -95,16 +96,19 @@ type PerpsType map[string]LogEntries
 // For each IP, the latest logentry time is used to determine sort order.
 // Logentries are grouped by IP, with IPs ranked by this sort order,
 // so latest accessed IP will appear last
-func PrintSorted(p PerpsType, hdb HostDB) {
+// ips to exclude are specified in config file, parsed in main
+func PrintSorted(p PerpsType, hdb HostDB, exclude map[string]bool) {
 	timeIndex := p.makeTimeIndex()
 	timeIndex = timeIndex.Sort()
 	for _, timeToken := range timeIndex {
-		ip := timeToken.IP
-		fmt.Println("\n+++++++++")
-		fmt.Println("----> ", ip)
-		hdb[ip].Print()
-		fmt.Println("....")
-		p[ip].Print()
+		if !exclude[timeToken.IP] {
+			ip := timeToken.IP
+			fmt.Println("\n+++++++++")
+			fmt.Println("----> ", ip)
+			hdb[ip].Print()
+			fmt.Println("....")
+			p[ip].Print()
+		}
 	}
 }
 
@@ -320,6 +324,11 @@ func process(logEntries []*LogEntry) (PerpsType, HostDB) {
 
 func main() {
 	config := ReadConfig()
+	omit := config.Omit
+	exclude := make(map[string]bool)
+	for _, ip := range strings.Split(omit, " ") {
+		exclude[ip] = true
+	}
 	accFlag := flag.Bool("a", false, "Process access.log")
 	otherFlag := flag.Bool("o", false, "Process others_vhosts_access.log")
 	errorFlag := flag.Bool("e", false, "Process error.log")
@@ -344,5 +353,5 @@ func main() {
 	}
 	rawLogEntries := parseLog(selector, *remoteFlag, config.Server)
 	perps, hostdb := process(rawLogEntries)
-	PrintSorted(perps, hostdb)
+	PrintSorted(perps, hostdb, exclude)
 }

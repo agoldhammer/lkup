@@ -13,6 +13,7 @@ import (
 
 type Config struct {
 	Server string
+	Omit   string
 }
 
 type LogEntry struct {
