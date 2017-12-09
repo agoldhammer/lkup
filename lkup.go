@@ -336,15 +336,14 @@ func main() {
 	for _, ip := range strings.Split(omit, " ") {
 		exclude[ip] = true
 	}
+	version := flag.Bool("v", false, "Print version and exit")
 	accFlag := flag.Bool("a", false, "Process access.log")
 	otherFlag := flag.Bool("o", false, "Process others_vhosts_access.log")
 	errorFlag := flag.Bool("e", false, "Process error.log")
-	remoteFlag := flag.Bool("r", false, "Read file from remote server")
-	dateFlag := flag.Bool("d", false, "TODO for testing dates")
+	remoteFlag := flag.Bool("r", true, "Read file from remote server")
 	flag.Parse()
-	if *dateFlag {
-		t := dparse("22/Nov/2017:18:47:58 +0000")
-		fmt.Printf("%v\n", t)
+	if *version {
+		fmt.Println("lkup version 0.33")
 		os.Exit(0)
 	}
 	var selector string
@@ -355,8 +354,8 @@ func main() {
 	} else if *errorFlag {
 		selector = "e"
 	} else {
-		fmt.Println("Error, exiting lkup")
-		os.Exit(1)
+		fmt.Println("lkup -h for help")
+		os.Exit(0)
 	}
 	rawLogEntries := parseLog(selector, *remoteFlag, config.Server)
 	perps, hostdb := process(rawLogEntries)
