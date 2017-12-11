@@ -137,9 +137,10 @@ var myClient = &http.Client{Timeout: 3 * time.Second}
 
 func getJSON(url string, target interface{}) error {
 	r, err := myClient.Get(url)
-	check(err)
-	defer r.Body.Close()
-	json.NewDecoder(r.Body).Decode(target)
+	if err == nil {
+		defer r.Body.Close()
+		json.NewDecoder(r.Body).Decode(target)
+	}
 	return err
 }
 
@@ -199,7 +200,10 @@ func lkupGeoloc(done <-chan interface{},
 		for hostinfo := range inCh {
 			geo := Geodata{}
 			// error will leave default geo, which is OK
-			getJSON(geoip+hostinfo.IP, &geo)
+			err := getJSON(geoip+hostinfo.IP, &geo)
+			if err != nil {
+				mon <- err.Error()
+			}
 			hostinfo.Geo = &geo
 			select {
 			case <-done:
