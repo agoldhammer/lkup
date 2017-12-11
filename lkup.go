@@ -101,8 +101,10 @@ type PerpsType map[string]LogEntries
 func PrintSorted(p PerpsType, hdb HostDB, exclude map[string]bool) {
 	timeIndex := p.makeTimeIndex()
 	timeIndex = timeIndex.Sort()
+	nprinted := 0
 	for _, timeToken := range timeIndex {
 		if !exclude[timeToken.IP] {
+			nprinted += 1
 			ip := timeToken.IP
 			fmt.Println("\n+++++++++")
 			fmt.Println("----> ", ip)
@@ -110,6 +112,9 @@ func PrintSorted(p PerpsType, hdb HostDB, exclude map[string]bool) {
 			fmt.Println("....")
 			p[ip].Print()
 		}
+	}
+	if nprinted == 0 {
+		fmt.Println("No non-excluded log entries")
 	}
 }
 
