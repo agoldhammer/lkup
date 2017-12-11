@@ -54,9 +54,12 @@ func parseLog(which string, remoteFlag bool, svr string) []*LogEntry {
 	//  log file
 
 	const (
-		errexp    = `\[(.+)] \[core:info] \[.+] \[client (\S+):\S+](.+)`
+		// the following works with error as well as info level
+		errexp    = `\[(.+)] \[core:.+] \[.+] .*\[client (\S+):\d+] (.+)`
 		accessexp = `(\S+).+\[(.+)] "([^"]+)"`
-		otherexp  = `\S+\s(\S+).+\[(.+)][^"]+"([^"]+)"`
+		// the following does not work with error but does with info
+		// errexp    = `\[(.+)] \[core:.+] \[.+] \[client (\S+):\S+](.+)`
+		otherexp = `\S+\s(\S+).+\[(.+)][^"]+"([^"]+)"`
 	)
 
 	parseexp := [3]string{errexp, accessexp, otherexp}

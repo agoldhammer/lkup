@@ -362,6 +362,10 @@ func main() {
 		os.Exit(0)
 	}
 	rawLogEntries := parseLog(selector, *remoteFlag, config.Server)
+	if len(rawLogEntries) == 0 {
+		fmt.Println("No log entries to process, exiting")
+		os.Exit(1)
+	}
 	perps, hostdb := process(rawLogEntries)
 	PrintSorted(perps, hostdb, exclude)
 }
