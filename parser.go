@@ -90,6 +90,9 @@ func parseLog(which string, remoteFlag bool, svr string) []*LogEntry {
 		result := re.FindAllStringSubmatch(line, -1)
 		if result != nil {
 			parts := result[0]
+			if len(parts) != 4 {
+				log.Fatal("Parse error, exiting")
+			}
 			logEntry := new(LogEntry)
 			// fmt.Printf("parts = %+v\n", parts)
 			// logEntry.Time = parts[npart[0]]
