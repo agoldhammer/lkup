@@ -2,6 +2,7 @@ package main
 
 import (
 	"io/ioutil"
+	"log"
 	"net/http"
 	"os"
 	"regexp"
@@ -26,7 +27,7 @@ type LogEntry struct {
 func ReadLines(filename string) []string {
 	content, err := ioutil.ReadFile(filename)
 	if err != nil {
-		check(err)
+		log.Fatal(err)
 	}
 	lines := strings.Split(string(content), "\n")
 	return lines
@@ -37,12 +38,12 @@ func ReadRemoteFile(server, filename string) []string {
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Get("http://" + server + filename)
 	if err != nil {
-		check(err)
+		log.Fatal(err)
 	}
 	defer resp.Body.Close()
 	content, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		check(err)
+		log.Fatal(err)
 	}
 	lines := strings.Split(string(content), "\n")
 	return lines
@@ -107,12 +108,12 @@ func ReadConfig() Config {
 	var configfile = os.Getenv("HOME") + "/.lkup/lkup.config"
 	_, err := os.Stat(configfile)
 	if err != nil {
-		check(err)
+		log.Fatal(err)
 	}
 
 	var config Config
 	if _, err := toml.DecodeFile(configfile, &config); err != nil {
-		check(err)
+		log.Fatal(err)
 	}
 	return config
 }

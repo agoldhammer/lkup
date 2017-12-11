@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log"
 	"regexp"
 	"strings"
 	"time"
@@ -64,7 +65,7 @@ func dparse(date string) time.Time {
 	time.Local = loc
 	t, err = dateparse.ParseLocal(date)
 	if err != nil {
-		check(err)
+		log.Fatal(err)
 	}
 	return t
 }

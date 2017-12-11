@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"log"
 	"net"
 	"net/http"
 	"os"
@@ -17,16 +18,6 @@ import (
 var wg sync.WaitGroup
 
 type Chnls []chan *HostInfoType
-
-// var updateWait sync.WaitGroup
-var mon chan string // monitor channel
-
-func check(e error) {
-	if e != nil {
-		fmt.Println(e)
-		panic(e)
-	}
-}
 
 type Geodata struct {
 	IP          string  `json:"ip"`
@@ -202,7 +193,7 @@ func lkupGeoloc(done <-chan interface{},
 			// error will leave default geo, which is OK
 			err := getJSON(geoip+hostinfo.IP, &geo)
 			if err != nil {
-				mon <- err.Error()
+				log.Printf("Geoloc: err = %+v\n", err)
 			}
 			hostinfo.Geo = &geo
 			select {
@@ -298,7 +289,6 @@ func process(logEntries []*LogEntry) (PerpsType, HostDB) {
 		these in the hostdb map. Print out info for each ip. Close all pipelines
 	*/
 	done := make(chan interface{})
-	mon = monitor(done)
 	perps := make(PerpsType)
 	hostdb := make(HostDB)
 	bar := pb.StartNew(len(logEntries))
