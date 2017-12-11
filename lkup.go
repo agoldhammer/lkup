@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/fatih/color"
 	"gopkg.in/cheggaaa/pb.v1"
 )
 
@@ -46,10 +47,12 @@ func (g *Geodata) String() string {
 }
 
 func (hostinfo *HostInfoType) Print() {
-	fmt.Printf("*Hostname: %v\n", hostinfo.Hostname)
-	fmt.Printf("*Country Code: %v\n", hostinfo.Geo.CountryCode)
+	cy := color.New(color.FgCyan)
+	yellow := color.New(color.FgYellow)
+	cy.Printf("*Hostname: %v\n", hostinfo.Hostname)
+	yellow.Printf("*Country Code: %v\n", hostinfo.Geo.CountryCode)
 	// fmt.Printf("Geo = %+v\n", hostinfo.Geo)
-	fmt.Printf("%v", hostinfo.Geo)
+	cy.Printf("%v", hostinfo.Geo)
 }
 
 // LogEntries ------------------------
