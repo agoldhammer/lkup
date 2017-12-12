@@ -326,13 +326,19 @@ func process(logEntries []*LogEntry) (PerpsType, HostDB) {
 	return perps, hostdb
 }
 
-func main() {
-	config := ReadConfig()
+func makeExclude(config Config) map[string]bool {
+
 	omit := config.Omit
 	exclude := make(map[string]bool)
 	for _, ip := range strings.Split(omit, " ") {
 		exclude[ip] = true
 	}
+	return exclude
+}
+
+func main() {
+	config := ReadConfig()
+	exclude := makeExclude(config)
 	version := flag.Bool("v", false, "Print version and exit")
 	accFlag := flag.Bool("a", false, "Process access.log")
 	otherFlag := flag.Bool("o", false, "Process others_vhosts_access.log")
