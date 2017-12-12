@@ -98,23 +98,18 @@ type PerpsType map[string]LogEntries
 // Logentries are grouped by IP, with IPs ranked by this sort order,
 // so latest accessed IP will appear last
 // ips to exclude are specified in config file, parsed in main
-func PrintSorted(p PerpsType, hdb HostDB, exclude map[string]bool) {
+func PrintSorted(p PerpsType, hdb HostDB) {
 	timeIndex := p.makeTimeIndex()
 	timeIndex = timeIndex.Sort()
 	nprinted := 0
 	for _, timeToken := range timeIndex {
-		if !exclude[timeToken.IP] {
-			nprinted += 1
-			ip := timeToken.IP
-			fmt.Println("\n+++++++++")
-			fmt.Println("----> ", ip)
-			hdb[ip].Print()
-			fmt.Println("....")
-			p[ip].Print()
-		}
-	}
-	if nprinted == 0 {
-		fmt.Println("No non-excluded log entries")
+		nprinted += 1
+		ip := timeToken.IP
+		fmt.Println("\n+++++++++")
+		fmt.Println("----> ", ip)
+		hdb[ip].Print()
+		fmt.Println("....")
+		p[ip].Print()
 	}
 }
 
@@ -345,7 +340,7 @@ func main() {
 	remoteFlag := flag.Bool("r", true, "Read file from remote server")
 	flag.Parse()
 	if *version {
-		fmt.Println("lkup version 0.33")
+		fmt.Println("lkup version 0.34")
 		os.Exit(0)
 	}
 	var selector string
@@ -359,11 +354,11 @@ func main() {
 		fmt.Println("lkup -h for help")
 		os.Exit(0)
 	}
-	rawLogEntries := parseLog(selector, *remoteFlag, config.Server)
+	rawLogEntries := parseLog(selector, config.Server, *remoteFlag, exclude)
 	if len(rawLogEntries) == 0 {
 		fmt.Println("No log entries to process, exiting")
 		os.Exit(1)
 	}
 	perps, hostdb := process(rawLogEntries)
-	PrintSorted(perps, hostdb, exclude)
+	PrintSorted(perps, hostdb)
 }

@@ -23,9 +23,23 @@ type LogEntry struct {
 	Text string
 }
 
-// ReadLines : To split file into lines
-func ReadLines(filename string) []string {
-	content, err := ioutil.ReadFile(filename)
+// LogReader reads a log and returns content as slice of lines
+type LogReader interface {
+	ReadLines() []string
+}
+
+type LocalLog struct {
+	fname string
+}
+
+type RemoteLog struct {
+	server string
+	fname  string
+}
+
+// NewLogFileReader creates a LogReader for named file
+func (l LocalLog) ReadLines() []string {
+	content, err := ioutil.ReadFile(l.fname)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -33,10 +47,10 @@ func ReadLines(filename string) []string {
 	return lines
 }
 
-// ReadRemoteFile : To split remote file into lines
-func ReadRemoteFile(server, filename string) []string {
+// NewRemoteLogReader creates a LogReader for logs on remote server
+func (l RemoteLog) ReadLines() []string {
 	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Get("http://" + server + filename)
+	resp, err := client.Get("http://" + l.server + l.fname)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -50,7 +64,8 @@ func ReadRemoteFile(server, filename string) []string {
 }
 
 // parseLog parses logentry data according to specified regexp
-func parseLog(which string, remoteFlag bool, svr string) []*LogEntry {
+func parseLog(which, server string, remoteFlag bool,
+	exclude map[string]bool) []*LogEntry {
 	// which should be one of e, a, or o to select appropriate
 	//  log file
 
@@ -78,10 +93,11 @@ func parseLog(which string, remoteFlag bool, svr string) []*LogEntry {
 	npart := order[selector]
 
 	var lines []string
+
 	if remoteFlag {
-		lines = ReadRemoteFile(svr, fname)
+		lines = RemoteLog{server, fname}.ReadLines()
 	} else {
-		lines = ReadLines(fname)
+		lines = LocalLog{fname}.ReadLines()
 	}
 
 	logEntries := []*LogEntry{}
@@ -94,12 +110,12 @@ func parseLog(which string, remoteFlag bool, svr string) []*LogEntry {
 				log.Fatal("Parse error, exiting")
 			}
 			logEntry := new(LogEntry)
-			// fmt.Printf("parts = %+v\n", parts)
-			// logEntry.Time = parts[npart[0]]
-			logEntry.Time = dparse(parts[npart[0]])
 			logEntry.IP = parts[npart[1]]
-			logEntry.Text = parts[npart[2]]
-			logEntries = append(logEntries, logEntry)
+			if !exclude[logEntry.IP] {
+				logEntry.Time = dparse(parts[npart[0]])
+				logEntry.Text = parts[npart[2]]
+				logEntries = append(logEntries, logEntry)
+			}
 
 		}
 	}
