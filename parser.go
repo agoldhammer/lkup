@@ -37,7 +37,7 @@ type RemoteLog struct {
 	fname  string
 }
 
-// NewLogFileReader creates a LogReader for named file
+// LocalLog.ReadLines satisfies LogReader interface for local logs.
 func (l LocalLog) ReadLines() []string {
 	content, err := ioutil.ReadFile(l.fname)
 	if err != nil {
@@ -47,7 +47,7 @@ func (l LocalLog) ReadLines() []string {
 	return lines
 }
 
-// NewRemoteLogReader creates a LogReader for logs on remote server
+// RemoteLog.Readlines satisfies LogReader interface for remote logs
 func (l RemoteLog) ReadLines() []string {
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Get("http://" + l.server + l.fname)
@@ -63,46 +63,47 @@ func (l RemoteLog) ReadLines() []string {
 	return lines
 }
 
+type LogParser struct {
+	fname           string
+	parseExpression string
+	order           [3]uint8
+}
+
 // parseLog parses logentry data according to specified regexp
 func parseLog(which, server string, remoteFlag bool,
 	exclude map[string]bool) []*LogEntry {
 	// which should be one of e, a, or o to select appropriate
 	//  log file
 
-	const (
-		// the following works with error as well as info level
-		errexp    = `\[(.+)] \[core:.+] \[.+] .*\[client (\S+):\d+] (.+)`
-		accessexp = `(\S+).+\[(.+)] "([^"]+)"`
-		// the following does not work with error but does with info
-		// errexp    = `\[(.+)] \[core:.+] \[.+] \[client (\S+):\S+](.+)`
-		otherexp = `\S+\s(\S+).+\[(.+)][^"]+"([^"]+)"`
-	)
-
-	parseexp := [3]string{errexp, accessexp, otherexp}
-
-	errord := [3]uint8{1, 2, 3}
-	accessord := [3]uint8{2, 1, 3}
-	otherord := [3]uint8{2, 1, 3}
-	order := [3][3]uint8{errord, accessord, otherord}
-
-	selectmap := map[string]int{"e": 0, "a": 1, "o": 2}
-	objmap := [3]string{"error.log", "access.log", "other_vhosts_access.log"}
-	selector := selectmap[which]
-	fname := objmap[selector]
-	rexp := parseexp[selector]
-	npart := order[selector]
+	var logparser LogParser
+	switch which {
+	case "e":
+		logparser = LogParser{fname: "error.log",
+			parseExpression: `\[(.+)] \[core:.+] \[.+] .*\[client (\S+):\d+] (.+)`,
+			order:           [3]uint8{1, 2, 3}}
+	case "a":
+		logparser = LogParser{fname: "access.log",
+			parseExpression: `(\S+).+\[(.+)] "([^"]+)"`,
+			order:           [3]uint8{2, 1, 3}}
+	case "o":
+		logparser = LogParser{fname: "other_vhosts_access.log",
+			parseExpression: `\S+\s(\S+).+\[(.+)][^"]+"([^"]+)"`,
+			order:           [3]uint8{2, 1, 3}}
+	default:
+		log.Fatal("bad option to parser")
+	}
 
 	var lines []string
 
 	if remoteFlag {
-		lines = RemoteLog{server, fname}.ReadLines()
+		lines = RemoteLog{server, logparser.fname}.ReadLines()
 	} else {
-		lines = LocalLog{fname}.ReadLines()
+		lines = LocalLog{logparser.fname}.ReadLines()
 	}
-
+	npart := logparser.order
 	logEntries := []*LogEntry{}
 	for _, line := range lines {
-		re := regexp.MustCompile(rexp)
+		re := regexp.MustCompile(logparser.parseExpression)
 		result := re.FindAllStringSubmatch(line, -1)
 		if result != nil {
 			parts := result[0]
