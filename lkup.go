@@ -1,3 +1,8 @@
+/*
+lkup processes apache log files in 3 different formats. It can stream the
+files from a remote server. IPs are associated with hostnames and geodata
+before printing.
+*/
 package main
 
 import (
@@ -16,10 +21,10 @@ import (
 	"gopkg.in/cheggaaa/pb.v1"
 )
 
+// Main wait group for processing pipelines
 var wg sync.WaitGroup
 
-type Chnls []chan *HostInfoType
-
+// Used by freegeoip lookup
 type Geodata struct {
 	IP          string  `json:"ip"`
 	CountryCode string  `json:"country_code"`
@@ -40,12 +45,17 @@ type HostInfoType struct {
 	Geo      *Geodata
 }
 
+// Channels used by main processing pipeline
+type Chnls []chan *HostInfoType
+
+// Stringer for Geodata
 func (g *Geodata) String() string {
 	a := fmt.Sprintf("*%v %v %v %v\n", g.CountryName, g.RegionName, g.City, g.Zip)
 	b := fmt.Sprintf("*%v (Lat/Long %v %v) Metro: %v\n", g.TZ, g.Lat, g.Long, g.MetroCode)
 	return a + b
 }
 
+// Colorized printing for HostInfo
 func (hostinfo *HostInfoType) Print() {
 	cy := color.New(color.FgCyan)
 	yellow := color.New(color.FgYellow)
@@ -56,13 +66,13 @@ func (hostinfo *HostInfoType) Print() {
 }
 
 // LogEntries ------------------------
+type LogEntries []*LogEntry
+
 func (les LogEntries) Print() {
 	for _, le := range les {
 		fmt.Printf("*: %+v\n", *le)
 	}
 }
-
-type LogEntries []*LogEntry
 
 // ----------------------------------------------------
 
@@ -113,6 +123,7 @@ func PrintSorted(p PerpsType, hdb HostDB) {
 	}
 }
 
+// addLogEntry adds logentry to perps db, returns true if IP is new
 func (p PerpsType) addLogEntry(le *LogEntry) bool {
 	isNewIP := false
 	ip := le.IP
@@ -129,6 +140,7 @@ func (p PerpsType) addLogEntry(le *LogEntry) bool {
 
 var myClient = &http.Client{Timeout: 3 * time.Second}
 
+// getJSON decodes JSON returned from geoip lookup
 func getJSON(url string, target interface{}) error {
 	r, err := myClient.Get(url)
 	if err == nil {
@@ -182,6 +194,15 @@ func lkupHost(done <-chan interface{},
 }
 
 // lkupGeoloc obtains geolocation data from freegeoip.net
+// The new API comes with a completely new endpoint (api.ipstack.com) and requires
+// you to append your API Access Key to the URL as a GET parameter.
+// For complete integration instructions, please head over to the API Documentation at https://ipstack.com/documentation. While the new API offers a completely reworked response structure with many additional data points, we also offer the option to receive results in the old freegeoip.net format in JSON or XML.
+
+// To receive your API results in the old freegeoip format, please simply append &legacy=1 to the new API URL.
+
+// JSON Example: http://api.ipstack.com/186.116.207.169?access_key=YOUR_ACCESS_KEY&output=json&legacy=1
+// 2511e0d2a311aff3101c232172c9e2cf
+
 func lkupGeoloc(done <-chan interface{},
 	inCh <-chan *HostInfoType) chan *HostInfoType {
 	outCh := make(chan *HostInfoType)
@@ -190,11 +211,12 @@ func lkupGeoloc(done <-chan interface{},
 		defer close(outCh)
 		wg.Add(1)
 		defer wg.Done()
-		geoip := "https://freegeoip.net/json/"
+		geoip := "http://api.ipstack.com/"
+		suffix := "?access_key=2511e0d2a311aff3101c232172c9e2cf&output=json&legacy=1"
 		for hostinfo := range inCh {
 			geo := Geodata{}
 			// error will leave default geo, which is OK
-			err := getJSON(geoip+hostinfo.IP, &geo)
+			err := getJSON(geoip+hostinfo.IP+suffix, &geo)
 			if err != nil {
 				log.Printf("Geoloc: err = %+v\n", err)
 			}
@@ -208,27 +230,6 @@ func lkupGeoloc(done <-chan interface{},
 	}()
 
 	return outCh
-}
-
-// monitor is a monitoring channel
-// TODO: replace with logger
-func monitor(done chan interface{}) chan string {
-	mon := make(chan string)
-
-	go func() {
-		defer close(mon)
-		for msg := range mon {
-			fmt.Printf("Monitor: %v\n", msg)
-			select {
-			case <-done:
-				return
-			default:
-				continue
-			}
-		}
-	}()
-
-	return mon
 }
 
 // multiplexer combines output from multiple pipelines to send to updateHostDB
@@ -326,6 +327,7 @@ func process(logEntries []*LogEntry) (PerpsType, HostDB) {
 	return perps, hostdb
 }
 
+// makeExclude creates exclusion map from omit entry in config file
 func makeExclude(config Config) map[string]bool {
 
 	omit := config.Omit
