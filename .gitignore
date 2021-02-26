@@ -1,0 +1,6 @@
+*.log*
+lkup
+regexp.txt
+cover.out
+coverage.html
+*.code-workspace
