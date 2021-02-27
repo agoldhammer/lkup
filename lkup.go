@@ -24,7 +24,7 @@ import (
 // Main wait group for processing pipelines
 var wg sync.WaitGroup
 
-// Used by freegeoip lookup
+// Geodata : Used by freegeoip lookup
 type Geodata struct {
 	IP          string  `json:"ip"`
 	CountryCode string  `json:"country_code"`
@@ -39,13 +39,14 @@ type Geodata struct {
 	MetroCode   int32   `json:"metro_code"`
 }
 
+// HostInfoType : info about host
 type HostInfoType struct {
 	IP       string
 	Hostname string
 	Geo      *Geodata
 }
 
-// Channels used by main processing pipeline
+// Chnls : Channels used by main processing pipeline
 type Chnls []chan *HostInfoType
 
 // Stringer for Geodata
@@ -55,7 +56,7 @@ func (g *Geodata) String() string {
 	return a + b
 }
 
-// Colorized printing for HostInfo
+// Print : Colorized printing for HostInfo
 func (hostinfo *HostInfoType) Print() {
 	cy := color.New(color.FgCyan)
 	yellow := color.New(color.FgYellow)
@@ -65,9 +66,10 @@ func (hostinfo *HostInfoType) Print() {
 	cy.Printf("%v", hostinfo.Geo)
 }
 
-// LogEntries ------------------------
+// LogEntries : ------------------------
 type LogEntries []*LogEntry
 
+// Print : print log entry type
 func (les LogEntries) Print() {
 	for _, le := range les {
 		fmt.Printf("*: %+v\n", *le)
@@ -113,7 +115,7 @@ func PrintSorted(p PerpsType, hdb HostDB) {
 	timeIndex = timeIndex.Sort()
 	nprinted := 0
 	for _, timeToken := range timeIndex {
-		nprinted += 1
+		nprinted++
 		ip := timeToken.IP
 		fmt.Println("\n+++++++++")
 		fmt.Println("----> ", ip)
@@ -343,12 +345,12 @@ func main() {
 	exclude := makeExclude(config)
 	version := flag.Bool("v", false, "Print version and exit")
 	accFlag := flag.Bool("a", false, "Process access.log")
-	otherFlag := flag.Bool("o", false, "Process others_vhosts_access.log")
+	otherFlag := flag.Bool("o", false, "Process small.log")
 	errorFlag := flag.Bool("e", false, "Process error.log")
-	remoteFlag := flag.Bool("r", true, "Read file from remote server")
+	remoteFlag := flag.Bool("r", false, "Read file from remote server")
 	flag.Parse()
 	if *version {
-		fmt.Println("lkup version 0.34")
+		fmt.Println("lkup version 0.35")
 		os.Exit(0)
 	}
 	var selector string
@@ -358,6 +360,8 @@ func main() {
 		selector = "o"
 	} else if *errorFlag {
 		selector = "e"
+	} else if len(os.Args) == 2 {
+		selector = os.Args[1]
 	} else {
 		fmt.Println("lkup -h for help")
 		os.Exit(0)
@@ -367,6 +371,7 @@ func main() {
 		fmt.Println("No log entries to process, exiting")
 		os.Exit(1)
 	}
+
 	perps, hostdb := process(rawLogEntries)
 	PrintSorted(perps, hostdb)
 }

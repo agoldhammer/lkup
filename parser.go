@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -12,11 +13,13 @@ import (
 	"github.com/BurntSushi/toml"
 )
 
+// Config : from lkup config file
 type Config struct {
 	Server string
 	Omit   string
 }
 
+// LogEntry : info from log file
 type LogEntry struct {
 	IP   string
 	Time time.Time
@@ -28,16 +31,18 @@ type LogReader interface {
 	ReadLines() []string
 }
 
+// LocalLog : log file on this machine
 type LocalLog struct {
 	fname string
 }
 
+// RemoteLog : log file on remote server
 type RemoteLog struct {
 	server string
 	fname  string
 }
 
-// LocalLog.ReadLines satisfies LogReader interface for local logs.
+// ReadLines : satisfies LogReader interface for local logs.
 func (l LocalLog) ReadLines() []string {
 	content, err := ioutil.ReadFile(l.fname)
 	if err != nil {
@@ -47,7 +52,7 @@ func (l LocalLog) ReadLines() []string {
 	return lines
 }
 
-// RemoteLog.Readlines satisfies LogReader interface for remote logs
+// ReadLines : satisfies LogReader interface for remote logs
 func (l RemoteLog) ReadLines() []string {
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Get("http://" + l.server + l.fname)
@@ -63,6 +68,7 @@ func (l RemoteLog) ReadLines() []string {
 	return lines
 }
 
+// LogParser : define log parser
 type LogParser struct {
 	fname           string
 	parseExpression string
@@ -76,6 +82,7 @@ func parseLog(which, server string, remoteFlag bool,
 	//  log file
 
 	var logparser LogParser
+	fmt.Printf("parseLog called: %s\n", which)
 	switch which {
 	case "e":
 		logparser = LogParser{fname: "error.log",
@@ -86,11 +93,17 @@ func parseLog(which, server string, remoteFlag bool,
 			parseExpression: `(\S+).+\[(.+)] "([^"]+)"`,
 			order:           [3]uint8{2, 1, 3}}
 	case "o":
-		logparser = LogParser{fname: "other_vhosts_access.log",
-			parseExpression: `\S+\s(\S+).+\[(.+)][^"]+"([^"]+)"`,
+		logparser = LogParser{fname: "small.log",
+			parseExpression: `(\S+).+\[(.+)] "([^"]+)"`,
 			order:           [3]uint8{2, 1, 3}}
+		// logparser = LogParser{fname: "newAccess.log",
+		// 	parseExpression: `\S+\s(\S+).+\[(.+)][^"]+"([^"]+)"`,
+		// 	order:           [3]uint8{2, 1, 3}}
 	default:
-		log.Fatal("bad option to parser")
+		// log.Fatal("bad option to parser")
+		logparser = LogParser{fname: which,
+			parseExpression: `(\S+).+\[(.+)] "([^"]+)"`,
+			order:           [3]uint8{2, 1, 3}}
 	}
 
 	var lines []string
@@ -98,7 +111,9 @@ func parseLog(which, server string, remoteFlag bool,
 	if remoteFlag {
 		lines = RemoteLog{server, logparser.fname}.ReadLines()
 	} else {
-		lines = LocalLog{logparser.fname}.ReadLines()
+		fmt.Printf("Reading local file %s\n", logparser.fname)
+		locallog := LocalLog{logparser.fname}
+		lines = locallog.ReadLines()
 	}
 	npart := logparser.order
 	logEntries := []*LogEntry{}

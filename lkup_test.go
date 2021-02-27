@@ -21,7 +21,7 @@ func TestConfig(t *testing.T) {
 func TestLogEntries(t *testing.T) {
 	config := ReadConfig()
 	exclude := makeExclude(config)
-	rawLogEntries := parseLog("e", "", false, exclude)
+	rawLogEntries := parseLog("a", "", false, exclude)
 	for _, rle := range rawLogEntries {
 		ty := reflect.TypeOf(*rle)
 		assert.Equal(t, "LogEntry", ty.Name(), "Got Non LogEntry")
@@ -31,7 +31,7 @@ func TestLogEntries(t *testing.T) {
 func TestSorting(t *testing.T) {
 	config := ReadConfig()
 	exclude := makeExclude(config)
-	rawLogEntries := parseLog("e", "", false, exclude)
+	rawLogEntries := parseLog("a", "", false, exclude)
 	perps, _ := process(rawLogEntries)
 	timeIndex := perps.makeTimeIndex()
 	timeIndex = timeIndex.Sort()
@@ -54,4 +54,18 @@ func TestLocalLog(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestGeoLoc(t *testing.T) {
+	geoip := "http://api.ipstack.com/"
+	suffix := "?access_key=2511e0d2a311aff3101c232172c9e2cf&output=json&legacy=1"
+	ip := "54.245.183.198"
+	// hostinfo = HostInfoType()
+	geo := Geodata{}
+	// error will leave default geo, which is OK
+	err := getJSON(geoip+ip+suffix, &geo)
+	if err != nil {
+		t.Log(err, geo)
+	}
+	t.Log(geo)
 }
