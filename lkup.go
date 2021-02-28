@@ -37,6 +37,7 @@ type Geodata struct {
 	Lat         float64 `json:"latitude"`
 	Long        float64 `json:"longitude"`
 	MetroCode   int32   `json:"metro_code"`
+	Hostname    string  `json:"hostname"`
 }
 
 // HostInfoType : info about host
@@ -61,6 +62,7 @@ func (hostinfo *HostInfoType) Print() {
 	cy := color.New(color.FgCyan)
 	yellow := color.New(color.FgYellow)
 	cy.Printf("*Hostname: %v\n", hostinfo.Hostname)
+	cy.Printf("*Hostname2: %v\n", hostinfo.Geo.Hostname)
 	yellow.Printf("*Country Code: %v\n", hostinfo.Geo.CountryCode)
 	// fmt.Printf("Geo = %+v\n", hostinfo.Geo)
 	cy.Printf("%v", hostinfo.Geo)
@@ -214,7 +216,7 @@ func lkupGeoloc(done <-chan interface{},
 		wg.Add(1)
 		defer wg.Done()
 		geoip := "http://api.ipstack.com/"
-		suffix := "?access_key=2511e0d2a311aff3101c232172c9e2cf&output=json&legacy=1"
+		suffix := "?access_key=2511e0d2a311aff3101c232172c9e2cf&output=json&hostname=1"
 		for hostinfo := range inCh {
 			geo := Geodata{}
 			// error will leave default geo, which is OK
@@ -268,8 +270,10 @@ func multiplexer(done <-chan interface{},
 func makeLookupPipeline(done <-chan interface{}) (chan *HostInfoType,
 	chan *HostInfoType) {
 	inCh := make(chan *HostInfoType)
-	hostCh := lkupHost(done, inCh)
-	outCh := lkupGeoloc(done, hostCh)
+	// TODO: Cutting hostCh out of the processing pipeline
+	// hostCh := lkupHost(done, inCh)
+	// outCh := lkupGeoloc(done, hostCh)
+	outCh := lkupGeoloc(done, inCh)
 	return outCh, inCh
 }
 
