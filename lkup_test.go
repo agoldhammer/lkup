@@ -68,6 +68,7 @@ func TestGeoLoc(t *testing.T) {
 		t.Log(err, geo)
 	}
 	t.Log(geo)
+	fmt.Println(geo)
 }
 
 func Test_makePipelines(t *testing.T) {
