@@ -69,3 +69,29 @@ func TestGeoLoc(t *testing.T) {
 	}
 	t.Log(geo)
 }
+
+func Test_makePipelines(t *testing.T) {
+	type args struct {
+		done  <-chan interface{}
+		count int
+	}
+	tests := []struct {
+		name  string
+		args  args
+		want  Chnls
+		want1 Chnls
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, got1 := makePipelines(tt.args.done, tt.args.count)
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("makePipelines() got = %v, want %v", got, tt.want)
+			}
+			if !reflect.DeepEqual(got1, tt.want1) {
+				t.Errorf("makePipelines() got1 = %v, want %v", got1, tt.want1)
+			}
+		})
+	}
+}
