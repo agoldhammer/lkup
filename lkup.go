@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"log"
 	"net"
 	"net/http"
 	"os"
@@ -61,8 +60,8 @@ func (g *Geodata) String() string {
 func (hostinfo *HostInfoType) Print() {
 	cy := color.New(color.FgCyan)
 	yellow := color.New(color.FgYellow)
-	cy.Printf("*Hostname: %v\n", hostinfo.Hostname)
-	cy.Printf("*Hostname2: %v\n", hostinfo.Geo.Hostname)
+	//cy.Printf("*Hostname: %v\n", hostinfo.Hostname)
+	cy.Printf("*Hostname: %v\n", hostinfo.Geo.Hostname)
 	yellow.Printf("*Country Code: %v\n", hostinfo.Geo.CountryCode)
 	// fmt.Printf("Geo = %+v\n", hostinfo.Geo)
 	cy.Printf("%v", hostinfo.Geo)
@@ -222,7 +221,8 @@ func lkupGeoloc(done <-chan interface{},
 			// error will leave default geo, which is OK
 			err := getJSON(geoip+hostinfo.IP+suffix, &geo)
 			if err != nil {
-				log.Printf("Geoloc: err = %+v\n", err)
+				// log.Printf("Geoloc: err = %+v\n", err)
+				geo.Hostname = "Geoloc timed out"
 			}
 			hostinfo.Geo = &geo
 			select {
@@ -301,11 +301,10 @@ func process(logEntries []*LogEntry) (PerpsType, HostDB) {
 	done := make(chan interface{})
 	perps := make(PerpsType)
 	hostdb := make(HostDB)
-	bar := pb.StartNew(len(logEntries))
+
 	newIPs := []string{}
 
 	for _, logEntry := range logEntries {
-		bar.Increment()
 		isNewIP := perps.addLogEntry(logEntry)
 		// lookup hostname and geodata only if not already in database
 		if isNewIP {
@@ -314,15 +313,20 @@ func process(logEntries []*LogEntry) (PerpsType, HostDB) {
 	}
 
 	count := len(newIPs)
+	bar := pb.StartNew(count)
 	outChs, inChs := makePipelines(done, count)
 	updateCh := multiplexer(done, outChs)
 	hostdb.updateHostDB(done, updateCh)
 
 	for i, ip := range newIPs {
+		bar.Increment()
+
 		hostInfo := new(HostInfoType)
 		hostInfo.IP = ip
 		inChs[i] <- hostInfo
 	}
+
+	bar.Finish()
 
 	for _, inCh := range inChs {
 		close(inCh)
