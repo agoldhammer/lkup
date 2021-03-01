@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"reflect"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -42,19 +41,19 @@ func TestSorting(t *testing.T) {
 	}
 }
 
-func TestLocalLog(t *testing.T) {
-	log := LocalLog{"error.log"}
-	lines := log.ReadLines()
-	// test all log lines begin with open bracket
-	for _, line := range lines {
-		if !strings.HasPrefix(line, "[") {
-			if line != "" {
-				fmt.Println(line)
-				t.Fail()
-			}
-		}
-	}
-}
+// func TestLocalLog(t *testing.T) {
+// 	log := LocalLog{"error.log"}
+// 	lines := log.ReadLines()
+// 	// test all log lines begin with open bracket
+// 	for _, line := range lines {
+// 		if !strings.HasPrefix(line, "[") {
+// 			if line != "" {
+// 				fmt.Println(line)
+// 				t.Fail()
+// 			}
+// 		}
+// 	}
+// }
 
 func TestGeoLoc(t *testing.T) {
 	geoip := "http://api.ipstack.com/"

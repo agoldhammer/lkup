@@ -1,13 +1,11 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
-	"io/ioutil"
 	"log"
-	"net/http"
 	"os"
 	"regexp"
-	"strings"
 	"time"
 
 	"github.com/BurntSushi/toml"
@@ -26,51 +24,36 @@ type LogEntry struct {
 	Text string
 }
 
-// LogReader reads a log and returns content as slice of lines
-type LogReader interface {
-	ReadLines() []string
+// Logsrc : represents log file
+type Logsrc struct {
+	fname   string
+	file    *os.File
+	scanner *bufio.Scanner
 }
 
-// LocalLog : log file on this machine
-type LocalLog struct {
-	fname string
-}
-
-// RemoteLog : log file on remote server
-type RemoteLog struct {
-	server string
-	fname  string
-}
-
-// ReadLines : satisfies LogReader interface for local logs.
-func (l LocalLog) ReadLines() []string {
-	content, err := ioutil.ReadFile(l.fname)
+func makeLogsrc(fname string) *Logsrc {
+	logsrc := Logsrc{fname: fname}
+	file, err := os.Open(fname)
 	if err != nil {
 		log.Fatal(err)
+	} else {
+		logsrc.file = file
 	}
-	lines := strings.Split(string(content), "\n")
-	return lines
+	logsrc.scanner = bufio.NewScanner(file)
+	return &logsrc
 }
 
-// ReadLines : satisfies LogReader interface for remote logs
-func (l RemoteLog) ReadLines() []string {
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Get("http://" + l.server + l.fname)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer resp.Body.Close()
-	content, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		log.Fatal(err)
-	}
-	lines := strings.Split(string(content), "\n")
-	return lines
+func makeLogsrcFromStdin() *Logsrc {
+	logsrc := Logsrc{fname: "stdin"}
+	logsrc.file = os.Stdin
+	logsrc.scanner = bufio.NewScanner(os.Stdin)
+	return &logsrc
 }
 
-// LogParser : define log parser
+// LogParser : parses logs from files or stdin
 type LogParser struct {
 	fname           string
+	logsrc          *Logsrc
 	parseExpression string
 	order           [3]uint8
 }
@@ -84,41 +67,31 @@ func parseLog(which, server string, remoteFlag bool,
 	var logparser LogParser
 	fmt.Printf("parseLog called: %s\n", which)
 	switch which {
-	case "e":
-		logparser = LogParser{fname: "error.log",
-			parseExpression: `\[(.+)] \[core:.+] \[.+] .*\[client (\S+):\d+] (.+)`,
-			order:           [3]uint8{1, 2, 3}}
+
 	case "a":
-		logparser = LogParser{fname: "access.log",
+		logparser = LogParser{fname: "stdin",
+			logsrc:          makeLogsrcFromStdin(),
 			parseExpression: `(\S+).+\[(.+)] "([^"]+)"`,
 			order:           [3]uint8{2, 1, 3}}
-	case "o":
-		logparser = LogParser{fname: "small.log",
-			parseExpression: `(\S+).+\[(.+)] "([^"]+)"`,
-			order:           [3]uint8{2, 1, 3}}
-		// logparser = LogParser{fname: "newAccess.log",
-		// 	parseExpression: `\S+\s(\S+).+\[(.+)][^"]+"([^"]+)"`,
-		// 	order:           [3]uint8{2, 1, 3}}
+
 	default:
 		// log.Fatal("bad option to parser")
 		logparser = LogParser{fname: which,
+			logsrc:          makeLogsrc(which),
 			parseExpression: `(\S+).+\[(.+)] "([^"]+)"`,
 			order:           [3]uint8{2, 1, 3}}
 	}
 
-	var lines []string
-
-	if remoteFlag {
-		lines = RemoteLog{server, logparser.fname}.ReadLines()
-	} else {
-		fmt.Printf("Reading local file %s\n", logparser.fname)
-		locallog := LocalLog{logparser.fname}
-		lines = locallog.ReadLines()
-	}
+	fmt.Printf("Reading local file %s\n", logparser.fname)
+	// locallog := LocalLog{logparser.fname}
+	// lines = locallog.ReadLines()
 	npart := logparser.order
 	logEntries := []*LogEntry{}
-	for _, line := range lines {
-		re := regexp.MustCompile(logparser.parseExpression)
+	scanner := logparser.logsrc.scanner
+	re := regexp.MustCompile(logparser.parseExpression)
+	for scanner.Scan() {
+		line := scanner.Text()
+		// fmt.Println(line)
 		result := re.FindAllStringSubmatch(line, -1)
 		if result != nil {
 			parts := result[0]
