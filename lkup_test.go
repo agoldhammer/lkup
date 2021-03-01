@@ -10,8 +10,8 @@ import (
 
 func TestConfig(t *testing.T) {
 	config := ReadConfig()
-	fmt.Println("Configured server is: ", config.Server)
-	if config.Server == "" {
+	fmt.Println("Configured omit is: ", config.Omit)
+	if config.Omit != "71.192.181.208" {
 
 		t.Error("expected server name string, got", config.Server)
 	}
