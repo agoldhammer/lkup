@@ -22,6 +22,7 @@ import (
 
 // Main wait group for processing pipelines
 var wg sync.WaitGroup
+var bar *pb.ProgressBar
 
 // Geodata : Used by freegeoip lookup
 type Geodata struct {
@@ -225,6 +226,7 @@ func lkupGeoloc(done <-chan interface{},
 				geo.Hostname = "Geoloc timed out"
 			}
 			hostinfo.Geo = &geo
+			bar.Increment()
 			select {
 			case <-done:
 				return
@@ -313,20 +315,18 @@ func process(logEntries []*LogEntry) (PerpsType, HostDB) {
 	}
 
 	count := len(newIPs)
-	bar := pb.StartNew(count)
+	bar = pb.StartNew(count)
 	outChs, inChs := makePipelines(done, count)
 	updateCh := multiplexer(done, outChs)
 	hostdb.updateHostDB(done, updateCh)
 
 	for i, ip := range newIPs {
-		bar.Increment()
+		// bar.Increment()
 
 		hostInfo := new(HostInfoType)
 		hostInfo.IP = ip
 		inChs[i] <- hostInfo
 	}
-
-	bar.Finish()
 
 	for _, inCh := range inChs {
 		close(inCh)
@@ -334,6 +334,7 @@ func process(logEntries []*LogEntry) (PerpsType, HostDB) {
 	// mon <- fmt.Sprintf("Processing %v entries\n", len(perps))
 	wg.Wait()
 	close(done)
+	bar.Finish()
 	return perps, hostdb
 }
 
