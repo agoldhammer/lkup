@@ -353,29 +353,22 @@ func main() {
 	config := ReadConfig()
 	exclude := makeExclude(config)
 	version := flag.Bool("v", false, "Print version and exit")
-	accFlag := flag.Bool("a", false, "Process access.log")
-	otherFlag := flag.Bool("o", false, "Process small.log")
-	errorFlag := flag.Bool("e", false, "Process error.log")
-	remoteFlag := flag.Bool("r", false, "Read file from remote server")
+	accFlag := flag.Bool("a", false, "Read log from stdin")
 	flag.Parse()
 	if *version {
-		fmt.Println("lkup version 0.35")
+		fmt.Println("lkup version 0.36")
 		os.Exit(0)
 	}
 	var selector string
 	if *accFlag {
 		selector = "a"
-	} else if *otherFlag {
-		selector = "o"
-	} else if *errorFlag {
-		selector = "e"
 	} else if len(os.Args) == 2 {
 		selector = os.Args[1]
 	} else {
 		fmt.Println("lkup -h for help")
 		os.Exit(0)
 	}
-	rawLogEntries := parseLog(selector, config.Server, *remoteFlag, exclude)
+	rawLogEntries := parseLog(selector, config.Server, exclude)
 	if len(rawLogEntries) == 0 {
 		fmt.Println("No log entries to process, exiting")
 		os.Exit(1)

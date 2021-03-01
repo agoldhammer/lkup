@@ -20,7 +20,7 @@ func TestConfig(t *testing.T) {
 func TestLogEntries(t *testing.T) {
 	config := ReadConfig()
 	exclude := makeExclude(config)
-	rawLogEntries := parseLog("a", "", false, exclude)
+	rawLogEntries := parseLog("a", "", exclude)
 	for _, rle := range rawLogEntries {
 		ty := reflect.TypeOf(*rle)
 		assert.Equal(t, "LogEntry", ty.Name(), "Got Non LogEntry")
@@ -30,7 +30,7 @@ func TestLogEntries(t *testing.T) {
 func TestSorting(t *testing.T) {
 	config := ReadConfig()
 	exclude := makeExclude(config)
-	rawLogEntries := parseLog("a", "", false, exclude)
+	rawLogEntries := parseLog("a", "", exclude)
 	perps, _ := process(rawLogEntries)
 	timeIndex := perps.makeTimeIndex()
 	timeIndex = timeIndex.Sort()
