@@ -9,8 +9,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-
-	// "net"
 	"net/http"
 	"os"
 	"strings"
@@ -25,6 +23,8 @@ import (
 var wg sync.WaitGroup
 var bar *pb.ProgressBar
 
+// Fetching security data requires higher level subscription to ipstack
+// so this code does nothing
 type security struct {
 	IsProxy     bool   `json:"is_proxy,omitempty"`
 	ProxyType   string `json:"proxy_type,omitempty"`
@@ -80,7 +80,12 @@ func (hostinfo *HostInfoType) Print() {
 	yellow.Printf("*Country Code: %v\n", hostinfo.Geo.CountryCode)
 	// fmt.Printf("Geo = %+v\n", hostinfo.Geo)
 	cy.Printf("%v", hostinfo.Geo)
-	red.Printf("Security: %v\n", hostinfo.Geo.Sec)
+	sec := hostinfo.Geo.Sec
+	if sec.IsProxy || sec.IsCrawler || sec.IsTor {
+		red.Printf("Security: %v\n", sec)
+	} else {
+		cy.Println("No security flags")
+	}
 }
 
 // main function
