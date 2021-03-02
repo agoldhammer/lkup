@@ -97,7 +97,7 @@ func main() {
 	accFlag := flag.Bool("a", false, "Read log from stdin")
 	flag.Parse()
 	if *version {
-		fmt.Println("lkup version 0.37")
+		fmt.Println("lkup version 0.38")
 		os.Exit(0)
 	}
 	var selector string
