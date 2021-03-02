@@ -59,8 +59,7 @@ type LogParser struct {
 }
 
 // parseLog parses logentry data according to specified regexp
-func parseLog(which, server string,
-	exclude map[string]bool) []*LogEntry {
+func parseLog(which string, exclude map[string]bool) []*LogEntry {
 	// which should be one of e, a, or o to select appropriate
 	//  log file
 

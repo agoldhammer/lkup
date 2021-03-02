@@ -20,7 +20,7 @@ func TestConfig(t *testing.T) {
 func TestLogEntries(t *testing.T) {
 	config := ReadConfig()
 	exclude := makeExclude(config)
-	rawLogEntries := parseLog("a", "", exclude)
+	rawLogEntries := parseLog("a", exclude)
 	for _, rle := range rawLogEntries {
 		ty := reflect.TypeOf(*rle)
 		assert.Equal(t, "LogEntry", ty.Name(), "Got Non LogEntry")
@@ -30,7 +30,7 @@ func TestLogEntries(t *testing.T) {
 func TestSorting(t *testing.T) {
 	config := ReadConfig()
 	exclude := makeExclude(config)
-	rawLogEntries := parseLog("a", "", exclude)
+	rawLogEntries := parseLog("a", exclude)
 	perps, _ := process(rawLogEntries)
 	timeIndex := perps.makeTimeIndex()
 	timeIndex = timeIndex.Sort()
@@ -40,20 +40,6 @@ func TestSorting(t *testing.T) {
 		assert.Equal(t, "timeTokenT", ty.Name(), "Got Non Time Token")
 	}
 }
-
-// func TestLocalLog(t *testing.T) {
-// 	log := LocalLog{"error.log"}
-// 	lines := log.ReadLines()
-// 	// test all log lines begin with open bracket
-// 	for _, line := range lines {
-// 		if !strings.HasPrefix(line, "[") {
-// 			if line != "" {
-// 				fmt.Println(line)
-// 				t.Fail()
-// 			}
-// 		}
-// 	}
-// }
 
 func TestGeoLoc(t *testing.T) {
 	geoip := "http://api.ipstack.com/"

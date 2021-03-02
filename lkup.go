@@ -368,7 +368,7 @@ func main() {
 		fmt.Println("lkup -h for help")
 		os.Exit(0)
 	}
-	rawLogEntries := parseLog(selector, config.Server, exclude)
+	rawLogEntries := parseLog(selector, exclude)
 	if len(rawLogEntries) == 0 {
 		fmt.Println("No log entries to process, exiting")
 		os.Exit(1)
