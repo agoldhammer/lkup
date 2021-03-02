@@ -88,8 +88,13 @@ func (hostinfo *HostInfoType) Print() {
 	}
 }
 
-// main function
-// reads command line, calls log parser to set things up
+// main function reads command line, calls log parser to set things up
+// The flow is as follows
+// The command line flags determine whether input is taken from stdin or from a file\
+// parseLog is then called to return a map from ip->LogEntry, where
+// a LogEntry consists of 3 parts: ip of a log record, time, and server action (Text)
+// This map is then passed to process.
+
 func main() {
 	config := ReadConfig()
 	exclude := makeExclude(config)
@@ -97,7 +102,7 @@ func main() {
 	accFlag := flag.Bool("a", false, "Read log from stdin")
 	flag.Parse()
 	if *version {
-		fmt.Println("lkup version 0.38")
+		fmt.Println("lkup version 0.40")
 		os.Exit(0)
 	}
 	var selector string
@@ -106,7 +111,8 @@ func main() {
 	} else if len(os.Args) == 2 {
 		selector = os.Args[1]
 	} else {
-		fmt.Println("lkup -h for help")
+		fmt.Println("usage: lkup [option] [filename]")
+		fmt.Println("-a: read from stdin; -v: print version")
 		os.Exit(0)
 	}
 	rawLogEntries := parseLog(selector, exclude)
@@ -119,9 +125,12 @@ func main() {
 	PrintSorted(perps, hostdb)
 }
 
-// process is the toplevel function. It creates one pipeline for each new IP.
-// It multiplexes the pipelines into updateHostDB. It also creates the
-// monitor channel. Waits until all data has been stored, then prints.
+// process is where the action takes place
+// It creates a pipeline of input channels and output channels connected by a multiplexer
+// After fan-in, the output channels feed into the hostdb
+// The hostdb is then sorted and printed.
+// Progress is tracked by a progress bar
+
 func process(logEntries []*LogEntry) (PerpsType, HostDB) {
 	/*
 		Store list of logEntries in perps map. For each new IP encountered,
@@ -305,8 +314,7 @@ func lkupGeoloc(done <-chan interface{},
 }
 
 // multiplexer combines output from multiple pipelines to send to updateHostDB
-func multiplexer(done <-chan interface{},
-	cs Chnls) chan *HostInfoType {
+func multiplexer(done <-chan interface{}, cs Chnls) chan *HostInfoType {
 	// see https://blog.golang.org/pipelines
 	var wg2 sync.WaitGroup
 	out := make(chan *HostInfoType)
