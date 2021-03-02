@@ -25,20 +25,32 @@ import (
 var wg sync.WaitGroup
 var bar *pb.ProgressBar
 
+type security struct {
+	IsProxy     bool   `json:"is_proxy,omitempty"`
+	ProxyType   string `json:"proxy_type,omitempty"`
+	IsCrawler   bool   `json:"is_crawler,omitempty"`
+	CrawlerName string `json:"crawler_name,omitempty"`
+	CrawlerType string `json:"crawler_type,omitempty"`
+	IsTor       bool   `json:"is_tor,omitempty"`
+	ThreatLevel string `json:"threat_level,omitempty"`
+	ThreatTypes string `json:"threat_types,omitempty"`
+}
+
 // Geodata : Used by freegeoip lookup
 type Geodata struct {
-	IP          string  `json:"ip"`
-	CountryCode string  `json:"country_code"`
-	CountryName string  `json:"country_name"`
-	RegionCode  string  `json:"region_code"`
-	RegionName  string  `json:"region_name"`
-	City        string  `json:"city"`
-	Zip         string  `json:"zip_code"`
-	TZ          string  `json:"time_zone"`
-	Lat         float64 `json:"latitude"`
-	Long        float64 `json:"longitude"`
-	MetroCode   int32   `json:"metro_code"`
-	Hostname    string  `json:"hostname"`
+	IP          string   `json:"ip"`
+	CountryCode string   `json:"country_code"`
+	CountryName string   `json:"country_name"`
+	RegionCode  string   `json:"region_code"`
+	RegionName  string   `json:"region_name"`
+	City        string   `json:"city"`
+	Zip         string   `json:"zip_code"`
+	TZ          string   `json:"time_zone"`
+	Lat         float64  `json:"latitude"`
+	Long        float64  `json:"longitude"`
+	MetroCode   int32    `json:"metro_code"`
+	Hostname    string   `json:"hostname"`
+	Sec         security `json:"security"`
 }
 
 // HostInfoType : info about host
@@ -62,11 +74,13 @@ func (g *Geodata) String() string {
 func (hostinfo *HostInfoType) Print() {
 	cy := color.New(color.FgCyan)
 	yellow := color.New(color.FgYellow)
+	red := color.New(color.FgRed)
 	//cy.Printf("*Hostname: %v\n", hostinfo.Hostname)
 	cy.Printf("*Hostname: %v\n", hostinfo.Geo.Hostname)
 	yellow.Printf("*Country Code: %v\n", hostinfo.Geo.CountryCode)
 	// fmt.Printf("Geo = %+v\n", hostinfo.Geo)
 	cy.Printf("%v", hostinfo.Geo)
+	red.Printf("Security: %v\n", hostinfo.Geo.Sec)
 }
 
 // main function
