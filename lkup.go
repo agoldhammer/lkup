@@ -9,7 +9,8 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"net"
+
+	// "net"
 	"net/http"
 	"os"
 	"strings"
@@ -66,6 +67,95 @@ func (hostinfo *HostInfoType) Print() {
 	yellow.Printf("*Country Code: %v\n", hostinfo.Geo.CountryCode)
 	// fmt.Printf("Geo = %+v\n", hostinfo.Geo)
 	cy.Printf("%v", hostinfo.Geo)
+}
+
+// main function
+// reads command line, calls log parser to set things up
+func main() {
+	config := ReadConfig()
+	exclude := makeExclude(config)
+	version := flag.Bool("v", false, "Print version and exit")
+	accFlag := flag.Bool("a", false, "Read log from stdin")
+	flag.Parse()
+	if *version {
+		fmt.Println("lkup version 0.37")
+		os.Exit(0)
+	}
+	var selector string
+	if *accFlag {
+		selector = "a"
+	} else if len(os.Args) == 2 {
+		selector = os.Args[1]
+	} else {
+		fmt.Println("lkup -h for help")
+		os.Exit(0)
+	}
+	rawLogEntries := parseLog(selector, exclude)
+	if len(rawLogEntries) == 0 {
+		fmt.Println("No log entries to process, exiting")
+		os.Exit(1)
+	}
+
+	perps, hostdb := process(rawLogEntries)
+	PrintSorted(perps, hostdb)
+}
+
+// process is the toplevel function. It creates one pipeline for each new IP.
+// It multiplexes the pipelines into updateHostDB. It also creates the
+// monitor channel. Waits until all data has been stored, then prints.
+func process(logEntries []*LogEntry) (PerpsType, HostDB) {
+	/*
+		Store list of logEntries in perps map. For each new IP encountered,
+		create a pipeline to lookup hostname and geo information and store
+		these in the hostdb map. Print out info for each ip. Close all pipelines
+	*/
+	done := make(chan interface{})
+	perps := make(PerpsType)
+	hostdb := make(HostDB)
+
+	newIPs := []string{}
+
+	for _, logEntry := range logEntries {
+		isNewIP := perps.addLogEntry(logEntry)
+		// lookup hostname and geodata only if not already in database
+		if isNewIP {
+			newIPs = append(newIPs, logEntry.IP)
+		}
+	}
+
+	count := len(newIPs)
+	bar = pb.StartNew(count)
+	outChs, inChs := makePipelines(done, count)
+	updateCh := multiplexer(done, outChs)
+	hostdb.updateHostDB(done, updateCh)
+
+	for i, ip := range newIPs {
+		// bar.Increment()
+
+		hostInfo := new(HostInfoType)
+		hostInfo.IP = ip
+		inChs[i] <- hostInfo
+	}
+
+	for _, inCh := range inChs {
+		close(inCh)
+	}
+	// mon <- fmt.Sprintf("Processing %v entries\n", len(perps))
+	wg.Wait()
+	close(done)
+	bar.Finish()
+	return perps, hostdb
+}
+
+// makeExclude creates exclusion map from omit entry in config file
+func makeExclude(config Config) map[string]bool {
+
+	omit := config.Omit
+	exclude := make(map[string]bool)
+	for _, ip := range strings.Split(omit, " ") {
+		exclude[ip] = true
+	}
+	return exclude
 }
 
 // LogEntries : ------------------------
@@ -142,7 +232,7 @@ func (p PerpsType) addLogEntry(le *LogEntry) bool {
 
 // -----------------------------
 
-var myClient = &http.Client{Timeout: 3 * time.Second}
+var myClient = &http.Client{Timeout: 1 * time.Second}
 
 // getJSON decodes JSON returned from geoip lookup
 func getJSON(url string, target interface{}) error {
@@ -152,49 +242,6 @@ func getJSON(url string, target interface{}) error {
 		json.NewDecoder(r.Body).Decode(target)
 	}
 	return err
-}
-
-// Pipeline functions
-// lkupHost uses reverse DNS to find hostname
-func lkupHost(done <-chan interface{},
-	inCh <-chan *HostInfoType) chan *HostInfoType {
-	outCh := make(chan *HostInfoType)
-
-	revdns := func(ip string, dnsCh chan string) {
-		var name string
-		names, err := net.LookupAddr(ip)
-		if err == nil {
-			name = names[0]
-		} else {
-			name = "unknown"
-		}
-		dnsCh <- name
-		close(dnsCh)
-	}
-
-	go func() {
-		defer close(outCh)
-		wg.Add(1)
-		defer wg.Done()
-		name := "DNS fail"
-		for hostinfo := range inCh {
-			dnsCh := make(chan string)
-			go revdns(hostinfo.IP, dnsCh)
-			select {
-			case name = <-dnsCh:
-			case <-time.After(1 * time.Second):
-				name = "Timed Out!"
-			}
-			hostinfo.Hostname = name
-			select {
-			case <-done:
-				return
-			case outCh <- hostinfo:
-			}
-		}
-	}()
-
-	return outCh
 }
 
 // lkupGeoloc obtains geolocation data from freegeoip.net
@@ -272,9 +319,6 @@ func multiplexer(done <-chan interface{},
 func makeLookupPipeline(done <-chan interface{}) (chan *HostInfoType,
 	chan *HostInfoType) {
 	inCh := make(chan *HostInfoType)
-	// TODO: Cutting hostCh out of the processing pipeline
-	// hostCh := lkupHost(done, inCh)
-	// outCh := lkupGeoloc(done, hostCh)
 	outCh := lkupGeoloc(done, inCh)
 	return outCh, inCh
 }
@@ -289,91 +333,4 @@ func makePipelines(done <-chan interface{}, count int) (Chnls, Chnls) {
 		inChs[i] = inCh
 	}
 	return outChs, inChs
-}
-
-// process is the toplevel function. It creates one pipeline for each new IP.
-// It multiplexes the pipelines into updateHostDB. It also creates the
-// monitor channel. Waits until all data has been stored, then prints.
-func process(logEntries []*LogEntry) (PerpsType, HostDB) {
-	/*
-		Store list of logEntries in perps map. For each new IP encountered,
-		create a pipeline to lookup hostname and geo information and store
-		these in the hostdb map. Print out info for each ip. Close all pipelines
-	*/
-	done := make(chan interface{})
-	perps := make(PerpsType)
-	hostdb := make(HostDB)
-
-	newIPs := []string{}
-
-	for _, logEntry := range logEntries {
-		isNewIP := perps.addLogEntry(logEntry)
-		// lookup hostname and geodata only if not already in database
-		if isNewIP {
-			newIPs = append(newIPs, logEntry.IP)
-		}
-	}
-
-	count := len(newIPs)
-	bar = pb.StartNew(count)
-	outChs, inChs := makePipelines(done, count)
-	updateCh := multiplexer(done, outChs)
-	hostdb.updateHostDB(done, updateCh)
-
-	for i, ip := range newIPs {
-		// bar.Increment()
-
-		hostInfo := new(HostInfoType)
-		hostInfo.IP = ip
-		inChs[i] <- hostInfo
-	}
-
-	for _, inCh := range inChs {
-		close(inCh)
-	}
-	// mon <- fmt.Sprintf("Processing %v entries\n", len(perps))
-	wg.Wait()
-	close(done)
-	bar.Finish()
-	return perps, hostdb
-}
-
-// makeExclude creates exclusion map from omit entry in config file
-func makeExclude(config Config) map[string]bool {
-
-	omit := config.Omit
-	exclude := make(map[string]bool)
-	for _, ip := range strings.Split(omit, " ") {
-		exclude[ip] = true
-	}
-	return exclude
-}
-
-func main() {
-	config := ReadConfig()
-	exclude := makeExclude(config)
-	version := flag.Bool("v", false, "Print version and exit")
-	accFlag := flag.Bool("a", false, "Read log from stdin")
-	flag.Parse()
-	if *version {
-		fmt.Println("lkup version 0.37")
-		os.Exit(0)
-	}
-	var selector string
-	if *accFlag {
-		selector = "a"
-	} else if len(os.Args) == 2 {
-		selector = os.Args[1]
-	} else {
-		fmt.Println("lkup -h for help")
-		os.Exit(0)
-	}
-	rawLogEntries := parseLog(selector, exclude)
-	if len(rawLogEntries) == 0 {
-		fmt.Println("No log entries to process, exiting")
-		os.Exit(1)
-	}
-
-	perps, hostdb := process(rawLogEntries)
-	PrintSorted(perps, hostdb)
 }
