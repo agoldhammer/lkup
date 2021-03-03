@@ -5,13 +5,9 @@ lkup can read standard log files produced by nginx.
 ## Usage
 
 lkup -a reads from stdin
-<<<<<<< HEAD
 
 lkup filename.log reads the named file
 
-=======
-lkup filename.log reads the named file
->>>>>>> 93eeb49d000b2772ecf3db607c706fb03d0372da
 lkup -v prints the version and exits
 
 ### Example
