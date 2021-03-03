@@ -1,5 +1,0 @@
-old access.log
-115.182.238.70 - - [19/Nov/2017:16:17:46 +0000] "GET /cgi-sys/test-cgi HTTP/1.1" 404 451 "-" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/56.0.2924.87 Safari/537.36"
-
-newAccess.log
-54.245.183.198 - - [26/Feb/2021:01:24:07 +0000] "GET / HTTP/1.1" 200 396 "-" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.97 Safari/537.36"
