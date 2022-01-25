@@ -1,0 +1,156 @@
+{
+  "$schema": "http://json-schema.org/draft-04/schema#",
+  "type": "object",
+  "properties": {
+    "ip": {
+      "type": "string"
+    },
+    "hostname": {
+      "type": "string"
+    },
+    "continent_code": {
+      "type": "string"
+    },
+    "continent_name": {
+      "type": "string"
+    },
+    "country_code2": {
+      "type": "string"
+    },
+    "country_code3": {
+      "type": "string"
+    },
+    "country_name": {
+      "type": "string"
+    },
+    "country_capital": {
+      "type": "string"
+    },
+    "state_prov": {
+      "type": "string"
+    },
+    "district": {
+      "type": "string"
+    },
+    "city": {
+      "type": "string"
+    },
+    "zipcode": {
+      "type": "string"
+    },
+    "latitude": {
+      "type": "string"
+    },
+    "longitude": {
+      "type": "string"
+    },
+    "is_eu": {
+      "type": "boolean"
+    },
+    "calling_code": {
+      "type": "string"
+    },
+    "country_tld": {
+      "type": "string"
+    },
+    "languages": {
+      "type": "string"
+    },
+    "country_flag": {
+      "type": "string"
+    },
+    "geoname_id": {
+      "type": "string"
+    },
+    "isp": {
+      "type": "string"
+    },
+    "connection_type": {
+      "type": "string"
+    },
+    "organization": {
+      "type": "string"
+    },
+    "asn": {
+      "type": "string"
+    },
+    "currency": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "symbol": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "name",
+        "symbol"
+      ]
+    },
+    "time_zone": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "offset": {
+          "type": "integer"
+        },
+        "current_time": {
+          "type": "string"
+        },
+        "current_time_unix": {
+          "type": "number"
+        },
+        "is_dst": {
+          "type": "boolean"
+        },
+        "dst_savings": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "name",
+        "offset",
+        "current_time",
+        "current_time_unix",
+        "is_dst",
+        "dst_savings"
+      ]
+    }
+  },
+  "required": [
+    "ip",
+    "hostname",
+    "continent_code",
+    "continent_name",
+    "country_code2",
+    "country_code3",
+    "country_name",
+    "country_capital",
+    "state_prov",
+    "district",
+    "city",
+    "zipcode",
+    "latitude",
+    "longitude",
+    "is_eu",
+    "calling_code",
+    "country_tld",
+    "languages",
+    "country_flag",
+    "geoname_id",
+    "isp",
+    "connection_type",
+    "organization",
+    "asn",
+    "currency",
+    "time_zone"
+  ]
+}
